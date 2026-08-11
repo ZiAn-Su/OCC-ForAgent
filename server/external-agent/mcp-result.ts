@@ -12,6 +12,16 @@ interface EmbeddedImage {
   mimeType?: string;
 }
 
+// load_skill already enforces a 64k character result budget and pages larger
+// playbooks with file/offset/nextOffset. Keep that exact, recoverable protocol
+// intact instead of treating a valid skill page as an unarchived tool result.
+// The extra headroom covers MCP activation metadata appended after the tool call.
+export const MCP_EXACT_SKILL_RESULT_LIMIT = 72_000;
+
+interface McpReplyProjectionOptions {
+  exactSkillResult?: boolean;
+}
+
 function embeddedImages(result: unknown): EmbeddedImage[] {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return [];
   if (!('__images' in result)) return [];
@@ -25,7 +35,10 @@ function embeddedImages(result: unknown): EmbeddedImage[] {
   ));
 }
 
-export function projectMcpReply(value: unknown): unknown {
+export function projectMcpReply(
+  value: unknown,
+  options: McpReplyProjectionOptions = {},
+): unknown {
   const sanitized = sanitizeJsonForArtifact(value);
   if (!sanitized) {
     throw new ExternalEditorCallError(
@@ -33,10 +46,15 @@ export function projectMcpReply(value: unknown): unknown {
       'The external result could not be serialized safely.',
     );
   }
-  if (sanitized.originalChars > TOOL_ARTIFACT_THRESHOLD) {
+  const resultLimit = options.exactSkillResult
+    ? MCP_EXACT_SKILL_RESULT_LIMIT
+    : TOOL_ARTIFACT_THRESHOLD;
+  if (sanitized.originalChars > resultLimit) {
     throw new ExternalEditorCallError(
       'failed',
-      'The external result was too large and no recoverable artifact reference was available.',
+      options.exactSkillResult
+        ? 'The skill result exceeded its bounded MCP page. Retry load_skill with file, offset, and a smaller limit.'
+        : 'The external result was too large and no recoverable artifact reference was available.',
     );
   }
   return JSON.parse(sanitized.body);

@@ -427,7 +427,9 @@ function makeServer(baseUrl: string, session: McpSession): Server {
         request.params.name,
         rawResult,
       );
-      const result = projectMcpReply(activatedResult);
+      const result = projectMcpReply(activatedResult, {
+        exactSkillResult: request.params.name === 'load_skill',
+      });
       return {
         content: toMcpContent(result),
         structuredContent: toStructuredContent(result),
