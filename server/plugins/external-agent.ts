@@ -49,10 +49,30 @@ const bridgeOperations: BridgeOperations = {
 
 
 
-function requestBaseUrl(req: IncomingMessage): string {
+const LOCAL_EDITOR_HOSTS: Readonly<Record<string, true>> = {
+  localhost: true,
+  '127.0.0.1': true,
+  '[::1]': true,
+};
+
+/**
+ * Use the MCP caller's loopback Host first. On Windows a Vite listener often
+ * accepts localhost through ::1; opening that raw socket address in the system
+ * browser is less reliable than reopening the caller's localhost origin.
+ */
+export function mcpRequestBaseUrl(req: IncomingMessage): string {
   const configured = configuredEditorOrigin();
   if (configured) return configured;
   const protocol = req.socket instanceof TLSSocket ? 'https:' : 'http:';
+  const requestedHost = headerValue(req, 'host');
+  if (requestedHost && !/[/\\@?#,\s]/.test(requestedHost)) {
+    try {
+      const requested = new URL(`${protocol}//${requestedHost}`);
+      if (LOCAL_EDITOR_HOSTS[requested.hostname.toLowerCase()] === true) return requested.origin;
+    } catch {
+      // Fall back to the socket address below.
+    }
+  }
   const address = req.socket.localAddress;
   const port = req.socket.localPort;
   if (address && port && isLoopbackAddress(address)) {
@@ -130,7 +150,7 @@ export function externalAgentPlugin(): Plugin {
           sendBridgeJson(res, 401, { error: 'invalid OpenChatCut MCP token' });
           return;
         }
-        void handleMcpRequest(req, res, requestBaseUrl(req)).catch((error) => {
+        void handleMcpRequest(req, res, mcpRequestBaseUrl(req)).catch((error) => {
           server.config.logger.error(`[external-mcp] ${error instanceof Error ? error.message : String(error)}`);
           if (!res.headersSent) sendBridgeJson(res, 500, { error: 'MCP request failed' });
         });

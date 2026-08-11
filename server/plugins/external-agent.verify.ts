@@ -6,6 +6,7 @@ import { externalMcpAuthorized, trustedEditorRequest } from '../editor-auth.ts';
 import { mintUploadReceipt } from '../external-agent/import-token.ts';
 import {
   handleExternalAgentBridge,
+  mcpRequestBaseUrl,
   type BridgeOperations,
 } from './external-agent.ts';
 
@@ -98,6 +99,24 @@ function editorRequestShape(
     socket: { remoteAddress },
   } as unknown as IncomingMessage;
 }
+
+function mcpRequestShape(host: string, localAddress = '::1'): IncomingMessage {
+  return {
+    headers: { host },
+    socket: { localAddress, localPort: 5199 },
+  } as unknown as IncomingMessage;
+}
+
+assert.equal(
+  mcpRequestBaseUrl(mcpRequestShape('localhost:5199')),
+  'http://localhost:5199',
+  'MCP browser launch URLs should preserve a trusted localhost Host over an IPv6 socket',
+);
+assert.equal(
+  mcpRequestBaseUrl(mcpRequestShape('example.invalid:5199')),
+  'http://[::1]:5199',
+  'untrusted MCP Host headers must not control the launched editor origin',
+);
 
 const registerRequest: RequestInit = {
   method: 'POST',
