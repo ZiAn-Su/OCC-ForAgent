@@ -290,6 +290,26 @@ npm run desktop:dev
 
 The desktop app uses an Electron shell with the same embedded services. The web development build and desktop build share project, agent, generation, and export logic.
 
+### Fast testing without packaging an EXE
+
+Normal development does not require `desktop:dist:win`. Choose the narrowest command for the change:
+
+```bash
+# Fastest: full web stack with hot reload; MCP remains on port 5199
+npm run dev
+
+# MCP project management and headless/offline regression with temporary isolated data
+npm run verify:mcp:projects
+
+# Complete MCP protocol and workflow verification
+npm run verify:mcp
+
+# Electron-shell testing without producing an installer
+npm run desktop:dev
+```
+
+Agents can connect directly to `http://localhost:5199/api/external-mcp/mcp` while the source version is running. Use `npm run desktop:dist:win` only for release candidates.
+
 ---
 
 ## Project Status
@@ -331,7 +351,7 @@ OpenChatCut exposes a Streamable HTTP MCP endpoint:
 http://localhost:5199/api/external-mcp/mcp
 ```
 
-The repository's root `.mcp.json` already contains the local connection. Before using timeline tools, run OpenChatCut and open the target project. Project listing, creation, and navigation tools do not require the editor to remain open.
+The repository's root `.mcp.json` already contains the local connection. `list_projects`, `create_project`, `get_project`, `update_project`, `delete_project`, and `restore_project` do not require an open editor; deletion is a recoverable soft delete. For import, preview, render, or export, the agent can call `open_project` to launch the selected project, wait for its editor bridge, and bind the MCP session without asking the user to open the project manually.
 
 Codex app/CLI and Claude Code use the same session workflow:
 
@@ -372,6 +392,11 @@ approve it in OpenChatCut before reporting that the edit was applied.
 External agents invoke the same internal editing tools and `EditorCore` commands as the editor itself. There are no separate project formats that can drift apart, and the live timeline is not changed while an external draft is being prepared.
 
 ### Protecting MCP access
+
+On first launch, OpenChatCut generates an MCP token in the current user's private
+configuration directory and reuses it across restarts. The trusted editor's MCP
+dialog can regenerate it at any time; regeneration immediately invalidates the old
+token. The token is never stored in a project or in browser storage.
 
 When exposing the MCP endpoint yourself, configure:
 

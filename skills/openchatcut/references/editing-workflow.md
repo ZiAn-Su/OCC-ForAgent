@@ -4,7 +4,9 @@
 
 1. Call `openchatcut_status`.
 2. Call `list_projects` when the project is not already identified.
-3. Call `target_project` with the selected project ID.
+3. Call `open_project` with the selected project ID for live editing, import,
+   preview, render, or export. Use `bind_project_offline` only when the user
+   explicitly requests offline data-only editing.
 4. When specialized guidance applies, call `load_skill`; it requires no edit
    session or `editSessionId`.
 5. Call `begin_edit_session` and keep the returned `editSessionId`.

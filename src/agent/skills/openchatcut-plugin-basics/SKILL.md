@@ -190,7 +190,7 @@ There is no authentication in this build; a project-access failure means the id 
 
 Opening or surfacing the editor early is part of the user experience: the user can watch the NLE, media pool, transcription, generation, and timeline placement while work continues. Prefer showing a visible OpenChatCut surface over leaving it closed.
 
-`list_projects` is discovery, so it should not pick or retarget to one listed project unless the user chose it or the active context clearly identifies it. Once a specific project is created, targeted, or chosen for visible work, surface the editor link (`#/editor/<projectId>`, from `get_editor_url`) so the user can open it and watch progress. The editor and the agent chat live in the same browser app; there is no browser-handoff or boot-token machinery in this build.
+`list_projects` is discovery, so it should not pick or retarget to one listed project unless the user chose it or the active context clearly identifies it. Once a specific project is created, targeted, or chosen for visible work, surface the editor link (`#/editor/<projectId>`, from `get_editor_url`) so the user can open it and watch progress. The editor and the agent chat live in the same browser app.
 
 ### Keep the visible editor aligned
 

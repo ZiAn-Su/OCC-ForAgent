@@ -12,14 +12,16 @@ back to another port.
 
 ## Projects exist but no editor is connected
 
-Call `get_editor_url` for the intended project and have the user open it.
-Project listing and creation can work without a live editor, while timeline
-tools require the target project to be open.
+Call `open_project` for the intended project. It launches the editor and waits
+for the bridge instead of asking the user to open the URL manually. Project
+listing and creation can work without a live editor, while live timeline tools
+require `open_project` to return `connected: true`.
 
 ## Tool missing
 
-The editor registers project tools after its bridge connects. Open the target
-project, call `openchatcut_status`, and refresh the MCP tool list.
+The editor registers project tools after its bridge connects. Call
+`open_project`, confirm `connected: true`, call `openchatcut_status`, and refresh
+the MCP tool list.
 
 ## Stale edit session
 

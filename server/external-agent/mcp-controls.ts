@@ -36,11 +36,85 @@ export const MCP_CONTROL_TOOLS: Tool[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
-    name: 'target_project',
-    description: 'Permanently bind this MCP transport to a live browser editor, or to an existing stored project through the offline fallback.',
+    name: 'get_project',
+    description: 'Get one project metadata and timeline summary. Optionally include the complete stored project document.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Full project id from list_projects.' },
+        includeDeleted: { type: 'boolean', description: 'Allow inspecting a soft-deleted project.' },
+        includeDocument: { type: 'boolean', description: 'Include the complete project document; default false.' },
+        editorBaseUrl: { type: 'string' },
+      },
+      required: ['projectId'],
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: 'update_project',
+    description: 'Update an active project name and/or description without opening the editor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Full project id from list_projects.' },
+        name: { type: 'string' },
+        description: {
+          anyOf: [{ type: 'string' }, { type: 'null' }],
+          description: 'New description. Pass null or an empty string to clear it.',
+        },
+        editorBaseUrl: { type: 'string' },
+      },
+      required: ['projectId'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: 'delete_project',
+    description: 'Soft-delete a project. The document is retained and can be recovered with restore_project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Full project id; never defaults to the bound project.' },
+      },
+      required: ['projectId'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: 'restore_project',
+    description: 'Restore a project previously soft-deleted with delete_project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Full project id.' },
+        editorBaseUrl: { type: 'string' },
+      },
+      required: ['projectId'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: 'bind_project_offline',
+    description: 'Advanced: bind this MCP session to stored project data without opening an editor. Import, preview, render, and export will be unavailable.',
     inputSchema: {
       type: 'object',
       properties: { projectId: { type: 'string' }, editorBaseUrl: { type: 'string' } },
+      required: ['projectId'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: 'open_project',
+    description: 'Open a project in the OpenChatCut editor, wait for its live editor bridge, and bind this MCP session to it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Full project id from list_projects.' },
+        waitSeconds: {
+          type: 'number',
+          description: 'How long to wait for the editor bridge, from 0 to 45 seconds; default 20.',
+        },
+      },
       required: ['projectId'],
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -59,3 +133,8 @@ export const MCP_CONTROL_TOOLS: Tool[] = [
 export const MCP_CONTROL_TOOL_NAMES: Record<string, true> = Object.fromEntries(
   MCP_CONTROL_TOOLS.map((tool) => [tool.name, true]),
 );
+
+// The editor's internal agent still owns a legacy target_project tool. Keep it
+// filtered out of the external MCP catalog so agents cannot enter offline mode
+// through the old ambiguous name.
+MCP_CONTROL_TOOL_NAMES.target_project = true;

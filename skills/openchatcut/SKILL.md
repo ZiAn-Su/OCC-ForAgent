@@ -22,7 +22,8 @@ running editor and is loaded on demand with `load_skill`.
 1. Start OpenChatCut before connecting. The default MCP endpoint is
    `http://localhost:5199/api/external-mcp/mcp`.
 2. Call `openchatcut_status`, then `list_projects`. Select a project only when
-   the user names it or the current context identifies it.
+   the user names it or the current context identifies it. Call `open_project`
+   when the task needs live editor tools such as import, preview, or export.
 3. Call `load_skill` before specialized work. It is read-only and requires
    neither `begin_edit_session` nor `editSessionId`; available names and support
    files come from the live MCP tool description.
@@ -38,7 +39,7 @@ running editor and is loaded on demand with `load_skill`.
 
 ## Skill version
 
-`2026-08-11.1`
+`2026-08-11.2`
 
 The OpenChatCut MCP server announces its required skill baseline. If the server
 baseline is newer, run:

@@ -78,7 +78,7 @@ async function targetClient(context: SessionVerifierContext, name: string): Prom
   const connection = await connectClient(context.mcpUrl, name);
   context.clients.push(connection);
   await connection.client.callTool({
-    name: 'target_project',
+    name: 'open_project',
     arguments: { projectId: context.projectId },
   });
   return connection;

@@ -1,12 +1,15 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
+import { join } from 'node:path';
 import type { IncomingMessage } from 'node:http';
 import { TLSSocket } from 'node:tls';
 import type { EditorBootstrapInfo } from '../shared/editor-auth-transport.ts';
 import { isLoopbackAddress } from './loopback-address.ts';
+import { McpTokenStore } from './mcp-token-store.ts';
+import { runtimeProfile } from './runtime-profile.ts';
 
 export const EDITOR_BOOTSTRAP_HEADER = 'x-openchatcut-editor-bootstrap';
 
-const generatedMcpToken = randomBytes(32).toString('base64url');
+const mcpTokenStore = new McpTokenStore(join(runtimeProfile().authDir, 'mcp-token-v1'));
 const LOCAL_EDITOR_HOSTS: Readonly<Record<string, true>> = {
   localhost: true,
   '127.0.0.1': true,
@@ -14,7 +17,12 @@ const LOCAL_EDITOR_HOSTS: Readonly<Record<string, true>> = {
 };
 
 export function externalMcpToken(): string {
-  return process.env.OPENCHATCUT_MCP_TOKEN?.trim() || generatedMcpToken;
+  return mcpTokenStore.current();
+}
+
+export async function rotateExternalMcpToken(): Promise<EditorBootstrapInfo> {
+  const mcpToken = await mcpTokenStore.rotate();
+  return { mcpToken, mcpTokenCanRotate: true };
 }
 
 function secretMatches(actual: string | undefined, expected: string): boolean {
@@ -84,5 +92,8 @@ export function editorCredentialAuthorized(req: IncomingMessage, requireOrigin: 
 }
 
 export function editorBootstrapPayload(): EditorBootstrapInfo {
-  return { mcpToken: externalMcpToken() };
+  return {
+    mcpToken: externalMcpToken(),
+    mcpTokenCanRotate: !mcpTokenStore.isEnvironmentManaged(),
+  };
 }

@@ -40,12 +40,12 @@ function defaultBrowserProjectId(): string {
   if (!connected.length) {
     throw new ExternalEditorCallError(
       'rejected',
-      'No OpenChatCut editor is connected. Call target_project with an existing project id for offline editing, or open the editor.',
+      'No OpenChatCut editor is connected. Call open_project with the intended project.',
     );
   }
   throw new ExternalEditorCallError(
     'rejected',
-    'Multiple OpenChatCut projects are open; call target_project with the intended project.',
+    'Multiple OpenChatCut projects are open; call open_project with the intended project.',
   );
 }
 
@@ -108,7 +108,7 @@ export function bindBrowserForCall(
   return binding;
 }
 
-export async function targetMcpProject(
+export async function bindMcpProjectOffline(
   session: McpBindingSession,
   projectId: string,
   editorUrl: string,
@@ -130,8 +130,10 @@ export async function targetMcpProject(
   }
   const browser = editorBinding(projectId);
   if (browser && editorBindingMatches(browser)) {
-    session.binding = browser;
-    return browser;
+    throw new ExternalEditorCallError(
+      'rejected',
+      `Project ${projectId} is open in an editor. Use open_project from a new MCP session.`,
+    );
   }
   session.offline = await OfflineExternalEditRuntime.create(projectId, editorUrl);
   return session.offline.binding();

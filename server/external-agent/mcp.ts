@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { setImmediate as delayImmediate } from 'node:timers/promises';
+import { setImmediate as delayImmediate, setTimeout as delay } from 'node:timers/promises';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
@@ -12,6 +12,8 @@ import {
   cancelEditorCallsForOwner,
   connectedProjectIds,
   editSessionOwnerMatches,
+  editorBinding,
+  editorBindingMatches,
   editorStatuses,
   ExternalEditorCallError,
   invokeEditorTool,
@@ -21,12 +23,12 @@ import {
 } from './broker.ts';
 import {
   bindingMode,
+  bindMcpProjectOffline,
   bindBrowserForCall,
   boundProjectId,
   markMcpSessionStale,
   projectForRead,
   requestedProjectId,
-  targetMcpProject,
   validateBrowserBinding,
   validateOfflineBinding,
   type McpBindingSession,
@@ -39,7 +41,15 @@ import {
 } from './mcp-workflow-tools.ts';
 import { offlineExternalToolSchemas } from './offline-tools.ts';
 import type { OfflineEditorBinding } from './offline-runtime.ts';
-import { createExternalProject, listExternalProjects } from './projects.ts';
+import {
+  createExternalProject,
+  deleteExternalProject,
+  getExternalProject,
+  listExternalProjects,
+  restoreExternalProject,
+  updateExternalProject,
+} from './projects.ts';
+import { openProjectEditor } from './project-opener.ts';
 import { registerMcpPrompts } from './mcp-prompts.ts';
 import {
   activateMcpToolExposure,
@@ -60,7 +70,7 @@ import {
 } from './mcp-result.ts';
 export { toMcpContent, toStructuredContent } from './mcp-result.ts';
 
-export const OPENCHATCUT_SKILL_BASELINE = '2026-08-11.1';
+export const OPENCHATCUT_SKILL_BASELINE = '2026-08-11.2';
 export const MCP_SESSION_IDLE_LIMIT_MS = 60 * 60 * 1000;
 export const MCP_SESSION_COUNT_LIMIT = 64;
 export const MCP_POST_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
@@ -84,6 +94,26 @@ const sessions = new Map<string, McpSession>();
 function editorUrl(args: Record<string, unknown>, projectId: string, fallbackBase: string): string {
   const base = String(args.editorBaseUrl ?? '').trim() || fallbackBase;
   return `${base.replace(/\/+$/, '')}/#/editor/${encodeURIComponent(projectId)}`;
+}
+
+function openWaitMs(value: unknown): number {
+  if (value === undefined) return 20_000;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 45) {
+    throw new ExternalEditorCallError('rejected', 'waitSeconds must be between 0 and 45.');
+  }
+  return Math.round(value * 1_000);
+}
+
+async function waitForEditorBinding(projectId: string, timeoutMs: number): Promise<EditorBinding | null> {
+  const deadline = Date.now() + timeoutMs;
+  let binding = editorBinding(projectId);
+  if (binding && editorBindingMatches(binding)) return binding;
+  while (Date.now() < deadline) {
+    await delay(Math.min(100, Math.max(1, deadline - Date.now())));
+    binding = editorBinding(projectId);
+    if (binding && editorBindingMatches(binding)) return binding;
+  }
+  return null;
 }
 
 function fullMcpTools(session?: McpSession): Tool[] {
@@ -173,11 +203,102 @@ async function callControlTool(
     const project = await createExternalProject(args);
     return { ...project, editorUrl: editorUrl(args, project.id, baseUrl) };
   }
-  if (name === 'target_project') {
+  if (name === 'get_project') {
+    const project = await getExternalProject(args);
+    return {
+      ...project,
+      editorUrl: editorUrl(args, String(project.id), baseUrl),
+    };
+  }
+  if (name === 'update_project') {
+    const requested = requestedProjectId(args.projectId);
+    const current = boundProjectId(session);
+    if (current && requested !== current) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        `This MCP session is bound to project ${current}; it cannot update another project.`,
+      );
+    }
+    const project = await updateExternalProject(args);
+    return { ...project, editorUrl: editorUrl(args, project.id, baseUrl) };
+  }
+  if (name === 'delete_project') {
+    const requested = requestedProjectId(args.projectId);
+    if (!requested) throw new ExternalEditorCallError('rejected', 'A full projectId is required.');
+    if (boundProjectId(session) === requested) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        'The project is bound to this MCP session. Close this session before deleting it.',
+      );
+    }
+    if (connectedProjectIds().includes(requested)) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        'The project is open in an editor. Close that editor project before deleting it.',
+      );
+    }
+    const project = await deleteExternalProject(requested);
+    return { ...project, softDeleted: true };
+  }
+  if (name === 'restore_project') {
+    const requested = requestedProjectId(args.projectId);
+    const current = boundProjectId(session);
+    if (current && requested !== current) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        `This MCP session is bound to project ${current}; it cannot restore another project.`,
+      );
+    }
+    const project = await restoreExternalProject(requested);
+    return { ...project, editorUrl: editorUrl(args, project.id, baseUrl), restored: true };
+  }
+  if (name === 'open_project') {
+    if (boundProjectId(session)) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        'This MCP session is already bound. Start a new MCP session to open another project.',
+      );
+    }
+    const requested = requestedProjectId(args.projectId);
+    if (!requested) throw new ExternalEditorCallError('rejected', 'A full projectId is required.');
+    const url = editorUrl({}, requested, baseUrl);
+    let binding = await waitForEditorBinding(requested, 0);
+    let surface: 'existing' | 'desktop' | 'browser' = 'existing';
+    if (!binding) {
+      await getExternalProject({ projectId: requested });
+      surface = await openProjectEditor(url);
+      binding = await waitForEditorBinding(requested, openWaitMs(args.waitSeconds));
+    }
+    if (!binding) {
+      return {
+        ok: true,
+        projectId: requested,
+        editorUrl: url,
+        opened: true,
+        connected: false,
+        bindingMode: null,
+        surface,
+        note: 'The editor was launched but has not connected yet. Retry open_project in this unbound MCP session.',
+      };
+    }
+    session.binding = binding;
+    await sendMcpToolListChangedIfChanged(session, mcpTools(session));
+    return {
+      ok: true,
+      projectId: requested,
+      editorUrl: url,
+      opened: true,
+      connected: true,
+      bindingMode: 'browser',
+      binding,
+      surface,
+    };
+  }
+  if (name === 'bind_project_offline') {
     const projectId = requestedProjectId(args.projectId);
     if (!projectId) throw new ExternalEditorCallError('rejected', 'projectId is required');
     const url = editorUrl(args, projectId, baseUrl);
-    const binding = await targetMcpProject(session, projectId, url);
+    const binding = await bindMcpProjectOffline(session, projectId, url);
     await sendMcpToolListChangedIfChanged(session, mcpTools(session));
     return { ok: true, bindingMode: bindingMode(session), binding, editorUrl: url };
   }
@@ -278,7 +399,7 @@ function makeServer(baseUrl: string, session: McpSession): Server {
       capabilities: { tools: { listChanged: true }, prompts: {} },
       instructions: [
         `OpenChatCut external skill baseline: ${OPENCHATCUT_SKILL_BASELINE}. Update with npx skills update openchatcut when the installed skill is older.`,
-        'Bind this MCP transport with target_project before editing. A connected browser is preferred; an existing stored project can use the offline fallback when no browser owns it.',
+        'Use open_project to launch the selected project and bind this transport to its live editor. Use bind_project_offline only for explicitly requested server-direct editing without import, preview, render, or export.',
         'The target response and openchatcut_status report bindingMode. Offline bindings expose only server-direct data tools and require approvalMode="auto".',
         session.exposure.mode === 'progressive'
           ? 'This client negotiated progressive tool exposure. Call ToolSearch or load_skill to reveal task tools; tools/list_changed is sent when the visible set grows.'

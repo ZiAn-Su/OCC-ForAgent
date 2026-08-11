@@ -1,6 +1,7 @@
 // Trusted editor guide for the authenticated Streamable HTTP endpoint.
 import { useEffect, useState } from 'react';
-import { editorBootstrapInfo } from '../../agent/editor-credential';
+import { editorBootstrapInfo, rotateEditorMcpToken } from '../../agent/editor-credential';
+import type { EditorBootstrapInfo } from '../../../shared/editor-auth-transport';
 import { theme } from '../../theme';
 import { useT } from '../../i18n/locale';
 import { Icon } from '../icons';
@@ -63,16 +64,29 @@ function CopyButton({ text }: { text: string }) {
 export function McpGuideDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
   const endpoint = `${window.location.origin}/api/external-mcp/mcp`;
-  const [mcpToken, setMcpToken] = useState<string | null>(null);
+  const [mcpInfo, setMcpInfo] = useState<EditorBootstrapInfo | null>(null);
   const [tokenError, setTokenError] = useState(false);
+  const [rotatingToken, setRotatingToken] = useState(false);
   useEffect(() => {
     let active = true;
     void editorBootstrapInfo().then(
-      (info) => { if (active) setMcpToken(info.mcpToken); },
+      (info) => { if (active) setMcpInfo(info); },
       () => { if (active) setTokenError(true); },
     );
     return () => { active = false; };
   }, []);
+  const rotateToken = async () => {
+    if (!window.confirm(t('重新生成后，使用旧 Token 的智能体会立即断开。确定继续吗？'))) return;
+    setRotatingToken(true);
+    setTokenError(false);
+    try {
+      setMcpInfo(await rotateEditorMcpToken());
+    } catch {
+      setTokenError(true);
+    } finally {
+      setRotatingToken(false);
+    }
+  };
   const codeStyle: React.CSSProperties = {
     margin: 0, padding: '7px 9px', border: `0.5px solid ${theme.borderLight}`, borderRadius: 4,
     background: theme.inset, color: theme.text, fontSize: 11.5, lineHeight: 1.5,
@@ -117,7 +131,25 @@ export function McpGuideDialog({ onClose }: { onClose: () => void }) {
           <pre style={codeStyle}>{endpoint}</pre>
         </div>
 
-        {mcpToken ? snippets(endpoint, mcpToken).map((snippet) => (
+        {mcpInfo && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              disabled={!mcpInfo.mcpTokenCanRotate || rotatingToken}
+              onClick={() => { void rotateToken(); }}
+              style={{ padding: '5px 10px' }}
+            >
+              {rotatingToken ? t('正在重新生成…') : t('重新生成 Token')}
+            </button>
+            {!mcpInfo.mcpTokenCanRotate && (
+              <span style={{ color: theme.textDim, fontSize: 11.5 }}>
+                {t('当前 Token 由 OPENCHATCUT_MCP_TOKEN 环境变量管理。')}
+              </span>
+            )}
+          </div>
+        )}
+
+        {mcpInfo ? snippets(endpoint, mcpInfo.mcpToken).map((snippet) => (
           <div key={snippet.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start' }}>
               <span style={{ fontSize: 12, fontWeight: 600 }}>{snippet.label}</span>
@@ -132,7 +164,7 @@ export function McpGuideDialog({ onClose }: { onClose: () => void }) {
         )}
 
         <div style={{ color: theme.textDim, fontSize: 11.5, lineHeight: 1.55, borderTop: `0.5px solid ${theme.borderLight}`, paddingTop: 8 }}>
-          {t('MCP 端点始终要求 Bearer 令牌。令牌只在当前受信任编辑器会话中显示，不写入工程、聊天或浏览器存储；服务重启后自动生成的令牌会变化，需要重新复制配置。OPENCHATCUT_MCP_TOKEN 可覆盖自动令牌。')}
+          {t('MCP Token 首次启动时自动生成，并保存在当前用户的私有配置目录中；重启后保持不变。重新生成会立即使旧 Token 失效。OPENCHATCUT_MCP_TOKEN 仍可覆盖本机 Token。')}
         </div>
       </div>
     </div>

@@ -181,8 +181,8 @@ try {
   const initialProgressive = await progressiveA.client.listTools();
   assert.equal(initialProgressive.tools.some((tool) => tool.name === 'ToolSearch'), true);
   assert.equal(initialProgressive.tools.some((tool) => tool.name === dynamicTool.name), false);
-  await progressiveA.client.callTool({ name: 'target_project', arguments: { projectId: projectA } });
-  await progressiveB.client.callTool({ name: 'target_project', arguments: { projectId: projectA } });
+  await progressiveA.client.callTool({ name: 'open_project', arguments: { projectId: projectA } });
+  await progressiveB.client.callTool({ name: 'open_project', arguments: { projectId: projectA } });
   const hiddenBeforeSearch = await progressiveA.client.callTool({
     name: dynamicTool.name,
     arguments: {},
@@ -236,7 +236,7 @@ try {
 
   registerEditor(projectB, editorB, revisionB, editorTools);
   const targetA = await boundA.client.callTool({
-    name: 'target_project',
+    name: 'open_project',
     arguments: { projectId: projectA },
   });
   assert.notEqual(targetA.isError, true);
@@ -247,7 +247,7 @@ try {
   const boundB = await connectClient(mcpUrl, 'openchatcut-mcp-binding-b');
   clients.push(boundB);
   assert.notEqual((await boundB.client.callTool({
-    name: 'target_project',
+    name: 'open_project',
     arguments: { projectId: projectB },
   })).isError, true);
   const crossProject = await boundA.client.callTool({
@@ -275,7 +275,7 @@ try {
   const switchClient = await connectClient(mcpUrl, 'openchatcut-mcp-switch');
   clients.push(switchClient);
   await switchClient.client.callTool({
-    name: 'target_project',
+    name: 'open_project',
     arguments: { projectId: projectA },
   });
   const switchingCall = switchClient.client.callTool({
@@ -293,7 +293,7 @@ try {
   const closeClientConnection = await connectClient(mcpUrl, 'openchatcut-mcp-close');
   clients.push(closeClientConnection);
   await closeClientConnection.client.callTool({
-    name: 'target_project',
+    name: 'open_project',
     arguments: { projectId: projectA },
   });
   const closePending = closeClientConnection.client.callTool({
@@ -340,7 +340,7 @@ try {
     cappedClients.push(await connectClient(mcpUrl, `openchatcut-mcp-cap-${index}`));
   }
   await cappedClients[1].client.callTool({
-    name: 'target_project',
+    name: 'open_project',
     arguments: { projectId: projectA },
   });
   const cappedPending = cappedClients[1].client.callTool({

@@ -18,6 +18,7 @@ import {
   editorCredentialAuthorized,
   externalMcpAuthorized,
   headerValue,
+  rotateExternalMcpToken,
   trustedEditorRequest,
 } from '../editor-auth.ts';
 import {
@@ -26,6 +27,7 @@ import {
   sendBridgeJson,
   type BridgeOperations,
 } from './external-agent-bridge-routes.ts';
+import { isLoopbackAddress } from '../loopback-address.ts';
 
 export type { BridgeOperations } from './external-agent-bridge-routes.ts';
 
@@ -51,6 +53,13 @@ function requestBaseUrl(req: IncomingMessage): string {
   const configured = configuredEditorOrigin();
   if (configured) return configured;
   const protocol = req.socket instanceof TLSSocket ? 'https:' : 'http:';
+  const address = req.socket.localAddress;
+  const port = req.socket.localPort;
+  if (address && port && isLoopbackAddress(address)) {
+    const normalized = address.startsWith('::ffff:') ? address.slice('::ffff:'.length) : address;
+    const host = normalized.includes(':') ? `[${normalized}]` : normalized;
+    return `${protocol}//${host}:${port}`;
+  }
   return `${protocol}//${headerValue(req, 'host') ?? '127.0.0.1:5199'}`;
 }
 
@@ -97,6 +106,11 @@ export async function handleExternalAgentBridge(
   }
   if (write && !isJsonRequest(req)) {
     sendBridgeJson(res, 415, { error: 'editor bridge writes require JSON' });
+    return;
+  }
+  if (req.method === 'POST' && url.pathname === '/mcp-token/rotate') {
+    await readBridgeJson(req);
+    sendBridgeJson(res, 200, await rotateExternalMcpToken());
     return;
   }
   await routeExternalAgentBridge(req, res, url, operations);

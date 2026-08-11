@@ -79,8 +79,8 @@ When the MCP tools are available, call:
 Interpret the result:
 
 - Editors listed: the live editor bridge is ready.
-- Projects listed but no editor connected: project discovery works; open the
-  intended project using its `editorUrl`.
+- Projects listed but no editor connected: project discovery works; call
+  `open_project` for the intended project.
 - No projects: the connection works; ask whether to create a project.
 - Connection error: follow `known-errors.md`.
 
@@ -90,17 +90,22 @@ Do not create or select a project just because one looks plausible.
 
 Once the user has identified a project:
 
-1. Call `target_project`.
-2. Surface the URL returned by `get_editor_url`.
+1. Call `open_project` when the task needs import, preview, render, export, or
+   another live editor tool. It launches the editor, waits for its bridge, and
+   binds this MCP transport.
+2. Use `bind_project_offline` instead only for explicitly requested
+   server-direct editing that does not require a live editor.
 3. Follow `editing-workflow.md`.
 
 ## Token lifecycle
 
 The endpoint always requires a bearer token, including on localhost. By default,
-OpenChatCut generates it in private server memory and shows it only through the
-trusted editor's **Settings → MCP** page. A server restart changes that generated
-token, so reconnect clients using the newly displayed configuration.
+OpenChatCut generates it on first launch, persists it in the current runtime
+profile's private authentication directory, and shows it only through the trusted
+editor's **Settings → MCP** page. It remains stable across server restarts. Use
+**Regenerate token** to rotate it; clients using the previous token are rejected
+immediately.
 
-`OPENCHATCUT_MCP_TOKEN` overrides the generated token when a stable deployment
-secret is required. Keep it in the MCP client's secret/environment configuration;
-never write it into a repository, project document, chat, or browser storage.
+`OPENCHATCUT_MCP_TOKEN` overrides the persisted local token for managed deployments.
+Keep tokens in the MCP client's secret/environment configuration; never write one
+into a repository, project document, chat, or browser storage.

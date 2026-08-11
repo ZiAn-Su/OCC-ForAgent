@@ -289,6 +289,26 @@ npm run desktop:dev
 
 桌面端使用 Electron 壳层和同一套内嵌服务，Web 开发版与桌面版共享工程、Agent、生成和导出逻辑。
 
+### 不打包 EXE 的快速测试
+
+日常修改不需要运行 `desktop:dist:win`。按改动范围选择：
+
+```bash
+# 最快：启动带热更新的完整 Web 服务，MCP 地址仍为 5199
+npm run dev
+
+# 只验证 MCP 工程管理与无编辑器离线流程（使用临时隔离数据）
+npm run verify:mcp:projects
+
+# 验证完整 MCP 协议与工作流
+npm run verify:mcp
+
+# 需要检查 Electron 壳层时再运行；不会生成安装包
+npm run desktop:dev
+```
+
+Agent 可直接连接 `http://localhost:5199/api/external-mcp/mcp` 测试源码版本。只有准备发布时才需要运行 `npm run desktop:dist:win` 生成 EXE。
+
 ---
 
 ## 项目状态
@@ -327,7 +347,7 @@ OpenChatCut 暴露 Streamable HTTP MCP：
 http://localhost:5199/api/external-mcp/mcp
 ```
 
-仓库根目录的 `.mcp.json` 已包含本地连接。使用时间线工具前，先运行 OpenChatCut 并打开目标工程；工程列表、创建和定位工具不要求编辑器保持打开。
+仓库根目录的 `.mcp.json` 已包含本地连接。`list_projects`、`create_project`、`get_project`、`update_project`、`delete_project` 和 `restore_project` 不要求编辑器保持打开；删除是可恢复的软删除。需要导入、预览、渲染或导出时，Agent 调用 `open_project` 即可自动启动目标工程、等待编辑器桥连接并绑定当前 MCP 会话，无需用户手动打开工程页面。
 
 Codex App/CLI 与 Claude Code 使用同一套会话流程：
 
@@ -367,6 +387,10 @@ claude mcp add --transport http openchatcut \
 外部 Agent 调用的仍是编辑器内部同一套工具和 `EditorCore` 命令，不存在两套互相漂移的工程格式；外部草稿准备期间不会修改正式时间线。
 
 ### MCP 访问保护
+
+OpenChatCut 首次启动时会在当前用户的私有配置目录中生成 MCP Token，后续重启继续复用。
+可在受信任编辑器的 MCP 接入窗口中随时重新生成；重新生成后旧 Token 立即失效。
+Token 不会写入工程或浏览器存储。
 
 自行暴露 MCP 入口时可配置：
 

@@ -28,10 +28,12 @@ async function requestEditorBootstrap(signal?: AbortSignal): Promise<EditorBoots
     value = await response.json();
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)
-    || !('mcpToken' in value) || typeof value.mcpToken !== 'string' || !value.mcpToken) {
+    || !('mcpToken' in value) || typeof value.mcpToken !== 'string' || !value.mcpToken
+    || ('mcpTokenCanRotate' in value && typeof value.mcpTokenCanRotate !== 'boolean')) {
     throw new Error('editor bootstrap returned invalid credentials');
   }
-  return { mcpToken: value.mcpToken };
+  const mcpTokenCanRotate = 'mcpTokenCanRotate' in value && value.mcpTokenCanRotate === true;
+  return { mcpToken: value.mcpToken, mcpTokenCanRotate };
 }
 
 export async function editorBootstrapInfo(signal?: AbortSignal): Promise<EditorBootstrapInfo> {
@@ -48,4 +50,25 @@ export async function editorBootstrapInfo(signal?: AbortSignal): Promise<EditorB
 export function invalidateEditorBootstrapInfo(): void {
   cached = null;
   pending = null;
+}
+
+export async function rotateEditorMcpToken(signal?: AbortSignal): Promise<EditorBootstrapInfo> {
+  const response = await fetchWithEditorSession('/api/external-agent/mcp-token/rotate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+    signal,
+  });
+  if (!response.ok) {
+    const value = await response.json().catch(() => null) as { error?: unknown } | null;
+    throw new Error(typeof value?.error === 'string' ? value.error : `token rotation failed: HTTP ${response.status}`);
+  }
+  const value = await response.json() as EditorBootstrapInfo;
+  if (!value || typeof value.mcpToken !== 'string' || !value.mcpToken
+    || typeof value.mcpTokenCanRotate !== 'boolean') {
+    throw new Error('token rotation returned invalid credentials');
+  }
+  cached = value;
+  pending = null;
+  return value;
 }

@@ -384,12 +384,11 @@ try {
     host: `localhost:${address.port}`,
   })).status, 403);
 
-  delete process.env.OPENCHATCUT_MCP_TOKEN;
   delete process.env.OPENCHATCUT_EDITOR_URL;
-  const tokenlessBootstrap = await readBootstrap(await bootstrap());
+  const configuredBootstrap = await readBootstrap(await bootstrap());
   assert.equal((await fetch(`${origin}/api/external-mcp/mcp`)).status, 401);
   assert.equal((await fetch(`${origin}/api/external-mcp/mcp`, {
-    headers: { Authorization: `Bearer ${tokenlessBootstrap.mcpToken}` },
+    headers: { Authorization: `Bearer ${configuredBootstrap.mcpToken}` },
   })).status, 204);
 } finally {
   if (originalToken === undefined) delete process.env.OPENCHATCUT_MCP_TOKEN;

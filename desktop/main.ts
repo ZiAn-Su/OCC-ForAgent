@@ -46,6 +46,7 @@ import {
 import { resolveExportRevealTarget } from './export-reveal.ts';
 import { runDesktopSmokeProbe } from './smoke-probe.ts';
 import { runtimeProfile } from '../server/runtime-profile.ts';
+import { registerProjectEditorOpener } from '../server/external-agent/project-opener.ts';
 
 // Electron main process entry. dev mode: esbuild hits desktop-dist/main.mjs,dist/ in the codebase root;
 // Packaging form: dist/, resonance-bundle, chrome-headless-shell use extraResources.
@@ -397,7 +398,16 @@ async function boot(): Promise<void> {
   applyDesktopWindowFrame(win);
   installResponsiveWindowScale(win);
   mainWindow = win;
+  const unregisterProjectOpener = registerProjectEditorOpener(async (url) => {
+    if (win.isDestroyed()) throw new Error('OpenChatCut desktop window is unavailable.');
+    await win.loadURL(url);
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    return 'desktop';
+  });
   win.once('closed', () => {
+    unregisterProjectOpener();
     mainWindow = null;
   });
   installDesktopPageGuards(win, origin);

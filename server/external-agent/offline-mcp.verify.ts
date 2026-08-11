@@ -55,7 +55,9 @@ function sessionId(result: CallToolResult): string {
 
 const root = await mkdtemp(join(tmpdir(), 'occ-offline-mcp-'));
 const previousHome = process.env.HOME;
+const previousUserProfile = process.env.USERPROFILE;
 process.env.HOME = root;
+process.env.USERPROFILE = root;
 
 // The store captures HOME at module evaluation; delay these known modules so this
 // verification can never touch the user's real project data.
@@ -70,6 +72,7 @@ const {
   mcpSessionsForTest,
   resetMcpSessionsForTest,
 } = await import('./mcp.ts');
+const { setProjectEditorOpenerForTest } = await import('./project-opener.ts');
 
 const projectId = 'offline-mcp-project';
 await setStoredEntry(`project:${projectId}`, projectDoc());
@@ -97,12 +100,112 @@ async function connect(name: string): Promise<Client> {
 try {
   const client = await connect('offline-flow');
   const initialTools = new Set((await client.listTools()).tools.map((tool) => tool.name));
-  assert.equal(initialTools.has('target_project'), true);
+  assert.equal(initialTools.has('target_project'), false);
+  assert.equal(initialTools.has('bind_project_offline'), true);
   assert.equal(initialTools.has('set_aspect_ratio'), true);
   assert.equal(initialTools.has('submit_render_job'), false);
+  for (const tool of [
+    'list_projects',
+    'create_project',
+    'get_project',
+    'update_project',
+    'delete_project',
+    'restore_project',
+    'open_project',
+  ]) {
+    assert.equal(initialTools.has(tool), true, `${tool} is available without an open editor`);
+  }
 
-  const target = await client.callTool({ name: 'target_project', arguments: { projectId } });
-  assert.notEqual(target.isError, true);
+  const created = await client.callTool({
+    name: 'create_project',
+    arguments: {
+      name: 'MCP managed project',
+      description: 'created without an editor',
+      compositionWidth: 1280,
+      compositionHeight: 720,
+      fps: 25,
+    },
+  });
+  assert.notEqual(created.isError, true);
+  const managedProjectId = String(resultField(created, 'id'));
+  assert.equal(typeof resultField(created, 'timelineId'), 'string');
+
+  const readCreated = await client.callTool({
+    name: 'get_project',
+    arguments: { projectId: managedProjectId, includeDocument: true },
+  });
+  assert.equal(resultField(readCreated, 'name'), 'MCP managed project');
+  assert.equal(
+    (resultField(readCreated, 'summary') as { timelineCount: number }).timelineCount,
+    1,
+  );
+  assert.equal(
+    (resultField(readCreated, 'document') as ProjectDoc).timelines[0]?.width,
+    1280,
+  );
+
+  const updated = await client.callTool({
+    name: 'update_project',
+    arguments: { projectId: managedProjectId, name: 'Renamed by MCP', description: null },
+  });
+  assert.equal(resultField(updated, 'name'), 'Renamed by MCP');
+  assert.equal('description' in updated.structuredContent!, false);
+
+  const deleted = await client.callTool({
+    name: 'delete_project',
+    arguments: { projectId: managedProjectId },
+  });
+  assert.equal(resultField(deleted, 'softDeleted'), true);
+  assert.equal(typeof resultField(deleted, 'deletedAt'), 'number');
+  const hiddenList = await client.callTool({ name: 'list_projects', arguments: {} });
+  assert.equal(
+    (resultField(hiddenList, 'result') as Array<{ id: string }>).some((entry) => entry.id === managedProjectId),
+    false,
+  );
+  const deletedList = await client.callTool({
+    name: 'list_projects',
+    arguments: { includeDeleted: true },
+  });
+  assert.equal(
+    (resultField(deletedList, 'result') as Array<{ id: string }>).some((entry) => entry.id === managedProjectId),
+    true,
+  );
+  const hiddenRead = await client.callTool({
+    name: 'get_project',
+    arguments: { projectId: managedProjectId },
+  });
+  assert.equal(hiddenRead.isError, true);
+  assert.equal(resultField(hiddenRead, 'outcome'), 'rejected');
+
+  const restored = await client.callTool({
+    name: 'restore_project',
+    arguments: { projectId: managedProjectId },
+  });
+  assert.equal(resultField(restored, 'restored'), true);
+  assert.equal(resultField(restored, 'name'), 'Renamed by MCP');
+
+  const openClient = await connect('mcp-open-project');
+  let launchedEditorUrl = '';
+  setProjectEditorOpenerForTest(async (url) => {
+    launchedEditorUrl = url;
+    registerEditor(managedProjectId, 'opened-by-mcp', 'opened-revision', []);
+    return 'browser';
+  });
+  const opened = await openClient.callTool({
+    name: 'open_project',
+    arguments: { projectId: managedProjectId, waitSeconds: 1 },
+  });
+  assert.notEqual(opened.isError, true, JSON.stringify(opened.structuredContent));
+  assert.equal(resultField(opened, 'connected'), true);
+  assert.equal(resultField(opened, 'bindingMode'), 'browser');
+  assert.match(launchedEditorUrl, new RegExp(`/#/editor/${managedProjectId}$`));
+  setProjectEditorOpenerForTest(null);
+  await unregisterEditor(managedProjectId, 'opened-by-mcp');
+
+  const originalBeforeTarget = await getStoredEntry(`project:${projectId}`);
+  assert.equal(originalBeforeTarget.found, true, JSON.stringify(await getStoredEntry('projects')));
+  const target = await client.callTool({ name: 'bind_project_offline', arguments: { projectId } });
+  assert.notEqual(target.isError, true, JSON.stringify(target.structuredContent));
   assert.equal(resultField(target, 'bindingMode'), 'offline');
   assert.equal(mcpSessionsForTest()[0].bindingMode, 'offline');
 
@@ -129,7 +232,7 @@ try {
   assert.deepEqual(versions[0].doc, projectDoc());
 
   const staleClient = await connect('offline-stale');
-  await staleClient.callTool({ name: 'target_project', arguments: { projectId } });
+  await staleClient.callTool({ name: 'bind_project_offline', arguments: { projectId } });
   const staleId = sessionId(await staleClient.callTool({
     name: 'begin_edit_session',
     arguments: { approvalMode: 'auto' },
@@ -149,7 +252,7 @@ try {
   assert.deepEqual((await getStoredEntry(`project:${projectId}`)).value, concurrent);
 
   const takeoverClient = await connect('offline-takeover');
-  await takeoverClient.callTool({ name: 'target_project', arguments: { projectId } });
+  await takeoverClient.callTool({ name: 'bind_project_offline', arguments: { projectId } });
   const takeoverId = sessionId(await takeoverClient.callTool({
     name: 'begin_edit_session',
     arguments: { approvalMode: 'auto' },
@@ -171,10 +274,13 @@ try {
   await resetMcpSessionsForTest();
   await Promise.all(clients.map((client) => client.close().catch(() => undefined)));
   resetExternalAgentBrokerForTest();
+  setProjectEditorOpenerForTest(null);
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await getStoredEntry('projects');
   if (previousHome === undefined) delete process.env.HOME;
   else process.env.HOME = previousHome;
+  if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+  else process.env.USERPROFILE = previousUserProfile;
   await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 10 });
 }
 
