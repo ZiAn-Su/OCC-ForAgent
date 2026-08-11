@@ -68,8 +68,8 @@ export default {
   directories: { output: 'release' },
   publish: [{
     provider: 'github',
-    owner: '0xsline',
-    repo: 'OpenChatCut',
+    owner: 'ZiAn-Su',
+    repo: 'OCC-ForAgent',
     channel: updateChannel,
   }],
   files: [

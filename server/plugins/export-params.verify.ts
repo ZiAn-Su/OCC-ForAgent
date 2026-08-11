@@ -2,11 +2,19 @@
 // Run with: npx tsx server/plugins/export-params.verify.ts (connected to npm test).
 import assert from 'node:assert/strict';
 import { exportScale, validateVideoParams } from './export.ts';
+import { remotionSafeRenderScale, scaledExportDimensions } from '../../src/export/mediaSettings.ts';
 import { requestedVideoBitrateBps, resolveVideoBitrateBps } from '../../src/export/bitrate.ts';
 
 // Short-edge presets preserve orientation; 4K means a 2160 px short edge.
 const scale480p = exportScale({ width: 1920, height: 1080 }, '480p');
 assert.deepEqual([Math.round(1920 * scale480p), Math.round(1080 * scale480p)], [854, 480]);
+const safe640x360Scale = remotionSafeRenderScale({ width: 640, height: 360 }, '480p');
+assert.equal(safe640x360Scale, 2);
+assert.deepEqual([640 * safe640x360Scale, 360 * safe640x360Scale], [1280, 720]);
+assert.deepEqual(
+  scaledExportDimensions({ width: 640, height: 360 }, '480p'),
+  { width: 854, height: 480, scale: exportScale({ width: 640, height: 360 }, '480p') },
+);
 assert.equal(exportScale({ width: 1080, height: 1920 }, '720p'), 720 / 1080);
 assert.equal(exportScale({ width: 1920, height: 1080 }, '1080p'), 1);
 assert.equal(exportScale({ width: 1920, height: 1080 }, '4k'), 2);

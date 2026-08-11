@@ -7,6 +7,8 @@ import {
   EXPORT_FPS_OPTIONS,
   EXPORT_RESOLUTIONS,
   exportScale,
+  remotionSafeRenderScale,
+  scaledExportDimensions,
   type ExportResolution,
 } from '../../src/export/mediaSettings.ts';
 import { MAX_VIDEO_BITRATE_BPS, MIN_VIDEO_BITRATE_BPS } from '../../src/export/bitrate.ts';
@@ -56,6 +58,8 @@ export interface ExportPlan {
   filename: string;
   durationSeconds: number;
   scale: number;
+  renderScale: number;
+  outputSize: { width: number; height: number } | undefined;
   retimeFps: number | undefined;
   videoBitrate: number | undefined;
 }
@@ -181,6 +185,9 @@ export function planExport(body: ExportRequest | null): ExportPlan {
     && body?.fps !== undefined && body.fps !== fps
     ? body.fps
     : undefined;
+  const scale = exportScale(state, body?.resolution);
+  const exactPresetPass = body?.resolution !== undefined && codec !== 'prores';
+  const outputDimensions = exactPresetPass ? scaledExportDimensions(state, body.resolution) : undefined;
   return {
     state,
     project,
@@ -191,7 +198,11 @@ export function planExport(body: ExportRequest | null): ExportPlan {
     totalFrames: frames,
     filename: exportFilename(body?.name, media.ext),
     durationSeconds: frames / fps,
-    scale: exportScale(state, body?.resolution),
+    scale,
+    renderScale: exactPresetPass ? remotionSafeRenderScale(state, body?.resolution) : scale,
+    outputSize: outputDimensions
+      ? { width: outputDimensions.width, height: outputDimensions.height }
+      : undefined,
     retimeFps,
     videoBitrate: format === 'video' && codec !== 'prores' ? body?.videoBitrate : undefined,
   };

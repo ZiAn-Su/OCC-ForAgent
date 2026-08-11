@@ -195,17 +195,17 @@ function runFfmpeg(args: string[], signal?: AbortSignal): Promise<void> {
       if (error) reject(error); else resolve();
     };
     const timer = setTimeout(() => {
-      timeoutError = new Error('ffmpeg fps retime timed out');
+      timeoutError = new Error('ffmpeg video finalization timed out');
       child.kill('SIGKILL');
     }, FFMPEG_TIMEOUT_MS);
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr += String(chunk);
       if (stderr.length > 16_000) stderr = stderr.slice(-8_000);
     });
-    child.once('error', (error) => finish(error));
+    child.once('error', (error) => finish(new Error(`ffmpeg video finalization failed: ${error.message}`)));
     child.once('close', (code) => finish(timeoutError ?? (code === 0
       ? undefined
-      : new Error(`ffmpeg fps retime failed (${code}): ${stderr.slice(-600)}`))));
+      : new Error(`ffmpeg video finalization failed (${code}): ${stderr.slice(-600)}`))));
   });
 }
 
@@ -218,15 +218,32 @@ export function retimeVideoEncodingArgs(
   return h264EncodingArgs({ encoder, targetBitrate, softwarePreset: 'medium' });
 }
 
-/** Re-sample presentation FPS; temporal interpolation intentionally stays off. */
-export async function retimeFps(
+export interface FinalizeVideoOptions {
+  targetFps?: number;
+  width?: number;
+  height?: number;
+}
+
+function finalVideoFilters(options: FinalizeVideoOptions): string[] {
+  const filters: string[] = [];
+  if (options.width !== undefined && options.height !== undefined) {
+    filters.push(`scale=${options.width}:${options.height}:flags=lanczos`);
+  }
+  return filters;
+}
+
+/** Final video pass: optional FPS resampling and/or exact preset dimensions. */
+export async function finalizeVideo(
   input: string,
   output: string,
-  targetFps: number,
+  options: FinalizeVideoOptions,
   codec: 'h264' | 'vp8',
   targetBitrate: number,
   signal?: AbortSignal,
 ): Promise<H264EncoderOutcome | undefined> {
+  const filters = finalVideoFilters(options);
+  const frameRateArgs = options.targetFps === undefined ? [] : ['-r', String(options.targetFps)];
+  if (filters.length === 0 && frameRateArgs.length === 0) throw new Error('finalizeVideo requires an FPS or size change');
   await unlink(output).catch(() => {});
   const base = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-y'];
   try {
@@ -234,25 +251,39 @@ export async function retimeFps(
       await runFfmpeg([
         ...base,
         '-i', input,
-        '-vf', `fps=${targetFps}`,
+        ...(filters.length > 0 ? ['-vf', filters.join(',')] : []),
+        ...frameRateArgs,
         ...retimeVideoEncodingArgs('vp8', 'libx264', targetBitrate),
         '-c:a', 'copy',
         output,
       ], signal);
       return undefined;
     }
-    return await retimeH264(base, input, output, targetFps, targetBitrate, signal);
+    return await finalizeH264(base, input, output, filters, frameRateArgs, targetBitrate, signal);
   } catch (error) {
     await unlink(output).catch(() => {});
     throw error;
   }
 }
 
-async function retimeH264(
-  base: string[],
+/** Re-sample presentation FPS; temporal interpolation intentionally stays off. */
+export function retimeFps(
   input: string,
   output: string,
   targetFps: number,
+  codec: 'h264' | 'vp8',
+  targetBitrate: number,
+  signal?: AbortSignal,
+): Promise<H264EncoderOutcome | undefined> {
+  return finalizeVideo(input, output, { targetFps }, codec, targetBitrate, signal);
+}
+
+async function finalizeH264(
+  base: string[],
+  input: string,
+  output: string,
+  filters: string[],
+  frameRateArgs: string[],
   targetBitrate: number,
   signal?: AbortSignal,
 ): Promise<H264EncoderOutcome> {
@@ -267,7 +298,8 @@ async function retimeH264(
         ...hwDecode,
         ...h264GlobalArgs(encoder),
         '-i', input,
-        '-vf', h264FilterChain(encoder, [`fps=${targetFps}`]),
+        ...(h264FilterChain(encoder, filters) ? ['-vf', h264FilterChain(encoder, filters)] : []),
+        ...frameRateArgs,
         ...retimeVideoEncodingArgs('h264', encoder, targetBitrate),
         '-c:a', 'copy',
         output,
@@ -285,7 +317,7 @@ async function retimeH264(
       console.warn(`[export] ${encoder} failed during FPS conversion; falling back to libx264`);
     }
   }
-  throw lastError instanceof Error ? lastError : new Error('ffmpeg fps retime failed');
+  throw lastError instanceof Error ? lastError : new Error('ffmpeg video finalization failed');
 }
 
 export function finalH264EncoderOutcome(

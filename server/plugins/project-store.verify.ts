@@ -73,6 +73,25 @@ async function verifyLiveExpiredOwnerIsNotReaped(root: string): Promise<void> {
   await rm(path, { recursive: true, force: true });
 }
 
+async function verifyExpiredGuardFromLiveProcessIsReaped(root: string): Promise<void> {
+  const path = join(root, 'guard-recovery.lock');
+  const guardPath = `${path}.guard`;
+  await mkdir(guardPath);
+  await writeFile(join(guardPath, 'owner.json'), JSON.stringify({
+    token: 'abandoned-guard',
+    pid: process.pid,
+    expiresAt: Date.now() - 1_000,
+  }));
+  const recovered = await createOwnerSafeLeaseLock({
+    path,
+    leaseMs: 50,
+    heartbeatMs: 10,
+    isPidAlive: () => true,
+  }).acquire();
+  assert.notEqual(recovered.token, 'abandoned-guard');
+  await recovered.release();
+}
+
 async function verifyDeadStaleRecovery(root: string): Promise<void> {
   const path = join(root, 'dead.lock');
   await mkdir(path);
@@ -183,6 +202,7 @@ try {
   await verifyLongOwnershipCannotBeStolen(lockRoot);
   await verifyOldReleaseCannotRemoveReplacement(lockRoot);
   await verifyLiveExpiredOwnerIsNotReaped(lockRoot);
+  await verifyExpiredGuardFromLiveProcessIsReaped(lockRoot);
   await verifyDeadStaleRecovery(lockRoot);
   await verifyConcurrentWritersSerialize(lockRoot);
   await verifyAtomicWriteOrdering();

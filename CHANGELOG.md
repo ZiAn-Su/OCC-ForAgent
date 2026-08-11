@@ -6,6 +6,29 @@ OpenChatCut 的重要变更记录在此。
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).  
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-08-11
+
+### Added / 新增
+
+- Added high-level MCP workflows for importing one or more absolute local media paths, finalizing uploads in a batch, optionally placing assets on the timeline, rendering the active timeline, waiting for completion, and copying the result to an explicit local output path.
+  新增高层 MCP 工作流：可从一个或多个本地绝对路径导入素材、批量完成上传、选择性落入时间线，并可渲染当前时间线、等待任务完成后复制到指定本地输出路径。
+- Added an installed-app MCP end-to-end verification flow covering project creation, local MP4 import, trim, split, H.264 export, media probing, and return-to-dashboard behavior.
+  新增安装版 MCP 端到端验证流程，覆盖创建工程、本地 MP4 导入、裁剪、切分、H.264 导出、媒体探测与返回工程列表。
+
+### Changed / 变更
+
+- Published this agent-focused downstream distribution as **OCC-ForAgent**, based on OpenChatCut v0.2.0. The application name and existing data directories remain unchanged in v0.2.1 for compatibility.
+  将本 Agent 专用下游发行版命名为 **OCC-ForAgent**，基于 OpenChatCut v0.2.0；为保持兼容，v0.2.1 的应用名称和既有数据目录暂不改变。
+
+### Fixed / 修复
+
+- Fixed stale Windows project-store guard directories blocking MCP project creation while the desktop process remained alive; transient Windows directory contention is retried and abandoned short-lived guards are safely reaped.
+  修复 Windows 下短期 guard 目录残留导致桌面进程仍存活时 MCP 无法创建工程的问题；现在会重试短暂目录占用，并安全回收过期 guard。
+- Fixed 480p/720p/1080p preset exports producing fractional Remotion dimensions. Server exports now use an integer-scale intermediate render and an exact FFmpeg final-size pass.
+  修复 480p/720p/1080p 预设导出产生 Remotion 浮点尺寸的问题；服务端现在先以整数倍中间尺寸渲染，再通过 FFmpeg 精确缩放到目标尺寸。
+- Fixed the editor trapping users when autosave fails or another window changes the project. The Home action now offers an explicit discard-and-return path while retaining the normal safe-save behavior.
+  修复自动保存失败或工程被其他窗口更新后无法返回主页的问题；主页按钮现在会在保留正常安全保存逻辑的同时，提供明确的“放弃未保存更改并返回”出口。
+
 ## [0.2.0] - 2026-08-11
 
 ### Added / 新增
@@ -485,6 +508,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Added Electron desktop packaging for macOS, Windows, and Linux.  
   提供 macOS、Windows 与 Linux 的 Electron 桌面端打包能力。
 
+[0.2.1]: https://github.com/ZiAn-Su/OCC-ForAgent/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/0xsline/OpenChatCut/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/0xsline/OpenChatCut/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/0xsline/OpenChatCut/compare/v0.1.7...v0.1.8

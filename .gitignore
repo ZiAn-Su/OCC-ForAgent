@@ -82,6 +82,7 @@ MODEL-OPT-PLAN.md
 
 # Local marketing assets and drafts
 /marketing/
+/test-output/
 .pi-*
 node_modules
 public/mediapipe/

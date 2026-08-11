@@ -22,6 +22,21 @@ export function findBundledBrowser(root: string, depth = 4): string | null {
   return null;
 }
 
+/** Remotion's platform compositor already ships an FFmpeg binary. */
+export function findBundledFfmpeg(root: string, depth = 4): string | null {
+  if (depth < 0 || !existsSync(root)) return null;
+  for (const name of readdirSync(root)) {
+    const path = join(root, name);
+    const entry = statSync(path);
+    if (entry.isFile() && (name === 'ffmpeg' || name === 'ffmpeg.exe')) return path;
+    if (entry.isDirectory()) {
+      const hit = findBundledFfmpeg(path, depth - 1);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 export interface PackagedPaths {
   resourcesPath: string;
   userDataPath: string;
@@ -44,9 +59,13 @@ export async function ensureWritableBundle({ resourcesPath, userDataPath, versio
   return dst;
 }
 
-/** One-stop packaged state: set two environment variables. It must be adjusted before the first rendering request (boot adjustment).*/
+/** One-stop packaged state: set runtime binary/bundle paths before the first request. */
 export async function preparePackagedRuntime(paths: PackagedPaths): Promise<void> {
   process.env.CC_REMOTION_BUNDLE = await ensureWritableBundle(paths);
   const browser = findBundledBrowser(join(paths.resourcesPath, 'chrome-headless-shell'));
   if (browser) process.env.CC_BROWSER_EXECUTABLE = browser;
+  if (!process.env.OPENCHATCUT_FFMPEG && !process.env.FFMPEG_PATH) {
+    const ffmpeg = findBundledFfmpeg(join(paths.resourcesPath, 'app', 'node_modules', '@remotion'));
+    if (ffmpeg) process.env.OPENCHATCUT_FFMPEG = ffmpeg;
+  }
 }

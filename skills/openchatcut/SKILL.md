@@ -38,7 +38,7 @@ running editor and is loaded on demand with `load_skill`.
 
 ## Skill version
 
-`2026-08-10.1`
+`2026-08-11.1`
 
 The OpenChatCut MCP server announces its required skill baseline. If the server
 baseline is newer, run:
@@ -50,5 +50,5 @@ npx skills update openchatcut
 Fallback command:
 
 ```bash
-npx skills add 0xsline/OpenChatCut --skill openchatcut
+npx skills add ZiAn-Su/OCC-ForAgent --skill openchatcut
 ```

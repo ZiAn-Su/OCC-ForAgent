@@ -2,7 +2,11 @@
   <img src="public/openchatcut-icon.png" width="96" alt="OpenChatCut" />
 </p>
 
-<h1 align="center">OpenChatCut</h1>
+<h1 align="center">OCC-ForAgent</h1>
+
+<p align="center"><strong>OpenChatCut for Agent · v0.2.1</strong></p>
+
+> OCC-ForAgent 是基于 [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut) 的 Agent 专用增强发行版。v0.2.1 新增 MCP 本地素材导入、时间线剪辑与视频导出的完整链路，并继续保留上游的 AGPL-3.0-or-later 许可证和署名。为保持兼容，本版本桌面应用内部仍使用 OpenChatCut 名称及原有数据目录。
 
 <p align="center">
   <strong>简体中文</strong> · <a href="README.md">English</a>
@@ -30,7 +34,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/0xsline/OpenChatCut"><img alt="GitHub Repository" src="https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github" /></a>
+  <a href="https://github.com/ZiAn-Su/OCC-ForAgent"><img alt="GitHub Repository" src="https://img.shields.io/badge/GitHub-OCC--ForAgent-181717?style=flat&logo=github" /></a>
   <a href="https://discord.gg/bSGUAeWYkh"><img alt="Discord 社区" src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=flat&logo=discord&logoColor=white" /></a>
   <img alt="Status" src="https://img.shields.io/badge/status-active_development-FF8A3D?style=flat" />
   <img alt="Local First" src="https://img.shields.io/badge/data-local_first-111827?style=flat" />
@@ -239,7 +243,7 @@ OpenChatCut 是 **开源 ChatCut 替代方案**：把 **对话式 Agent** 和 **
 
 ### 桌面安装包
 
-从 [GitHub Releases](https://github.com/0xsline/OpenChatCut/releases/latest) 下载最新的 macOS、Windows 与 Linux 构建。目前提供 Apple Silicon、Intel Mac 的 DMG、Windows x64 安装包，以及 Linux x64 AppImage。
+从 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest) 下载 OCC-ForAgent。v0.2.1 当前发布 Windows x64 安装包，其他平台可从源码构建；上游 OpenChatCut 的安装包仍可从[上游仓库](https://github.com/0xsline/OpenChatCut/releases)获取。
 
 这些仍是早期构建。macOS 安装包尚未签名和公证，首次启动时可能需要在系统设置中手动允许。
 
@@ -248,7 +252,7 @@ OpenChatCut 是 **开源 ChatCut 替代方案**：把 **对话式 Agent** 和 **
 需要 Node.js 24.x 和 npm。`package.json` 会约束支持的 Node.js 范围，`.nvmrc` 可供 Node 版本管理器直接选择对应主版本。
 
 ```bash
-git clone https://github.com/0xsline/OpenChatCut.git
+git clone https://github.com/ZiAn-Su/OCC-ForAgent.git
 cd OpenChatCut
 npm install
 cp .env.example .env.local
@@ -289,7 +293,7 @@ npm run desktop:dev
 
 ## 项目状态
 
-OpenChatCut 目前处于积极开发阶段，编辑器、工程格式和 Agent 工具仍会持续迭代。预构建的 macOS、Windows 与 Linux 安装包已发布到 [GitHub Releases](https://github.com/0xsline/OpenChatCut/releases)；开发和排障时，从源码运行仍是最透明的方式。
+OCC-ForAgent 目前处于积极开发阶段，编辑器、工程格式和 Agent 工具仍会持续迭代。预构建安装包发布在 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases)；开发和排障时，从源码运行仍是最透明的方式。
 
 基础时间线、本地工程、内置素材和手动编辑不依赖云服务。AI 模型、在线素材、生成、转写等联网能力只在你配置对应服务后启用。
 
@@ -300,7 +304,7 @@ OpenChatCut 目前处于积极开发阶段，编辑器、工程格式和 Agent �
 安装单入口 OpenChatCut Agent Skill：
 
 ```bash
-npx skills add 0xsline/OpenChatCut
+npx skills add ZiAn-Su/OCC-ForAgent
 ```
 
 然后对 Agent 说“设置 OpenChatCut”。安装的路由 Skill 会注册本地 MCP
@@ -334,7 +338,7 @@ Codex App/CLI 与 Claude Code 使用同一套会话流程：
 
 Codex 或 Claude 内的授权决定客户端能否调用工具。只有 `manual` 会话需要 OpenChatCut 工程内审批；`auto` 会话会明确跳过该审批。两种模式应用的操作都会原子提交为一个撤销节点。
 如果 `auto` 会话已过期，它会直接返回错误而不会降级为人工审批；请丢弃后重新创建会话。
-会话只暴露可安全进入草稿的工程读取/编辑工具。生成、导出、删除工程及其他会立即产生副作用的工具不在会话中开放，因为拒绝提案时无法回滚这些副作用。
+可回滚的剪辑修改仍会隔离在草稿中，直到审阅后才应用。导入、生成、导出等真实工程操作使用同一个编辑会话身份，但独立于草稿执行：`manual` 会话需要在 OpenChatCut 内单次确认，`auto` 会话可无人值守执行。完整本地自动化建议使用 `auto` 会话：`import_local_media` 可接收一个绝对路径或最多 32 个 `localPaths`，自动探测素材、批量入库并放到时间线；草稿应用后，`export_timeline` 可渲染当前时间线并将成片保存到指定的本机绝对路径。这两个高层工具都要求目标工程已在编辑器中打开。
 
 ### Codex
 
@@ -477,7 +481,7 @@ OpenChatCut 基于以下核心项目与规范构建：
 
 ## 更新日志
 
-重要变更见中英双语的 [`CHANGELOG.md`](CHANGELOG.md)，所有已发布安装包与源码包见 [GitHub Releases](https://github.com/0xsline/OpenChatCut/releases)。
+重要变更见中英双语的 [`CHANGELOG.md`](CHANGELOG.md) 与 [`RELEASE_NOTES_v0.2.1.md`](RELEASE_NOTES_v0.2.1.md)，安装包与源码包见 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases)。
 
 ---
 
@@ -509,4 +513,4 @@ OpenChatCut 采用 [GNU Affero General Public License v3.0 或更高版本](LICE
 3. 提交前运行 `npm test`、`npm run lint` 和 `npm run build`。
 4. 发起 Pull Request，并附上涉及 UI 或视频行为的截图/验收证据。
 
-问题与功能建议请使用 [GitHub Issues](https://github.com/0xsline/OpenChatCut/issues)。
+问题与功能建议请使用 [GitHub Issues](https://github.com/ZiAn-Su/OCC-ForAgent/issues)；仅与上游有关的问题请提交到 [OpenChatCut issue tracker](https://github.com/0xsline/OpenChatCut/issues)。

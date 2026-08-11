@@ -2,7 +2,11 @@
   <img src="public/openchatcut-icon.png" width="96" alt="OpenChatCut" />
 </p>
 
-<h1 align="center">OpenChatCut</h1>
+<h1 align="center">OCC-ForAgent</h1>
+
+<p align="center"><strong>OpenChatCut for Agent · v0.2.1</strong></p>
+
+> OCC-ForAgent is an agent-focused distribution based on [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut). Version 0.2.1 adds end-to-end MCP local-media import, timeline editing, and video export, while preserving the upstream AGPL-3.0-or-later license and attribution. The desktop application keeps the OpenChatCut product name and data directories in this release for compatibility.
 
 <p align="center">
   <a href="README_ZH.md">简体中文</a> · <strong>English</strong>
@@ -30,7 +34,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/0xsline/OpenChatCut"><img alt="GitHub Repository" src="https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github" /></a>
+  <a href="https://github.com/ZiAn-Su/OCC-ForAgent"><img alt="GitHub Repository" src="https://img.shields.io/badge/GitHub-OCC--ForAgent-181717?style=flat&logo=github" /></a>
   <a href="https://discord.gg/bSGUAeWYkh"><img alt="Discord Community" src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=flat&logo=discord&logoColor=white" /></a>
   <img alt="Status" src="https://img.shields.io/badge/status-active_development-FF8A3D?style=flat" />
   <img alt="Local First" src="https://img.shields.io/badge/data-local_first-111827?style=flat" />
@@ -239,7 +243,7 @@ Installable visual resources use the editor's `openchatcut-plugin@1` format and 
 
 ### Desktop installers
 
-Download the latest macOS, Windows, and Linux builds from [GitHub Releases](https://github.com/0xsline/OpenChatCut/releases/latest). The release currently includes DMG installers for Apple Silicon and Intel Macs, an x64 Windows installer, and an x64 Linux AppImage.
+Download OCC-ForAgent builds from [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest). Version 0.2.1 currently publishes a Windows x64 installer; additional platform builds can be produced from source. Upstream OpenChatCut releases remain available from the [upstream repository](https://github.com/0xsline/OpenChatCut/releases).
 
 These are early builds. The macOS packages are not yet signed or notarized, so the operating system may require manual approval on first launch.
 
@@ -248,7 +252,7 @@ These are early builds. The macOS packages are not yet signed or notarized, so t
 Requires Node.js 24.x and npm. The supported Node.js range is enforced by `package.json`, and `.nvmrc` selects the matching major version for Node version managers.
 
 ```bash
-git clone https://github.com/0xsline/OpenChatCut.git
+git clone https://github.com/ZiAn-Su/OCC-ForAgent.git
 cd OpenChatCut
 npm install
 cp .env.example .env.local
@@ -290,7 +294,7 @@ The desktop app uses an Electron shell with the same embedded services. The web 
 
 ## Project Status
 
-OpenChatCut is under active development. The editor, project format, and agent tools will continue to evolve. Prebuilt macOS, Windows, and Linux installers are published on [GitHub Releases](https://github.com/0xsline/OpenChatCut/releases); running from source remains the most transparent option for development and troubleshooting.
+OCC-ForAgent is under active development. The editor, project format, and agent tools will continue to evolve. Prebuilt packages are published on [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases); running from source remains the most transparent option for development and troubleshooting.
 
 The core timeline, local projects, built-in media, and manual editing do not depend on cloud services. Connected features such as AI models, online media, generation, and transcription are enabled only after you configure the corresponding services.
 
@@ -301,7 +305,7 @@ The core timeline, local projects, built-in media, and manual editing do not dep
 Install the single OpenChatCut Agent Skill:
 
 ```bash
-npx skills add 0xsline/OpenChatCut
+npx skills add ZiAn-Su/OCC-ForAgent
 ```
 
 Then tell the agent `Set up OpenChatCut`. The installed router registers the
@@ -338,7 +342,7 @@ Codex app/CLI and Claude Code use the same session workflow:
 
 Approval in Codex or Claude controls whether the client may call a tool. OpenChatCut project approval is required only for `manual` sessions; `auto` sessions explicitly bypass that review. Either mode commits the applied operations atomically as one undo step.
 If an `auto` session becomes stale, it returns an error instead of falling back to manual approval; discard it and start a new session.
-Only draft-safe project read/edit tools are exposed in these sessions. Generation, export, project deletion, and other immediate side-effect tools stay unavailable because a rejected proposal could not roll them back.
+Draft-safe edits remain isolated until review. Live-project operations use the same edit-session identity but run separately from the proposal: manual sessions require a one-shot confirmation in OpenChatCut, while auto sessions run them unattended. For end-to-end local automation, `import_local_media` accepts an absolute host path and can place the finalized asset directly on a track; after applying draft edits, `export_timeline` renders the active timeline and can save the completed file to an absolute host path. Both tools require the target project to be open.
 
 ### Codex
 
@@ -482,7 +486,7 @@ This list covers the project's major technical foundations. It does not replace 
 
 ## Changelog
 
-See the bilingual [`CHANGELOG.md`](CHANGELOG.md) for notable changes, or browse all published packages on [GitHub Releases](https://github.com/0xsline/OpenChatCut/releases).
+See the bilingual [`CHANGELOG.md`](CHANGELOG.md) and [`RELEASE_NOTES_v0.2.1.md`](RELEASE_NOTES_v0.2.1.md) for notable changes, or browse published packages on [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases).
 
 ---
 
@@ -515,4 +519,4 @@ Third-party components and assets remain subject to their respective licenses.
 3. Run `npm test`, `npm run lint`, and `npm run build` before committing.
 4. Open a Pull Request and include screenshots or acceptance evidence for UI or video-behavior changes.
 
-Use [GitHub Issues](https://github.com/0xsline/OpenChatCut/issues) for bug reports and feature requests.
+Use [GitHub Issues](https://github.com/ZiAn-Su/OCC-ForAgent/issues) for bug reports and feature requests. Upstream-specific issues belong in the [OpenChatCut issue tracker](https://github.com/0xsline/OpenChatCut/issues).

@@ -18,8 +18,8 @@ import {
   cancelActiveExportJob,
   exportJobFilename,
   exportOutputSize,
+  finalizeVideo,
   forgetExportJobController,
-  retimeFps,
   trackExportJobController,
   withExportPermit,
 } from './export-runtime.ts';
@@ -117,7 +117,9 @@ export function registerExportJobRoute(server: ViteDevServer): void {
             const { size } = await stat(filepath);
             controller.signal.throwIfAborted();
             const sourceFps = plan.state.fps;
-            const outputSize = plan.format === 'video' ? exportOutputSize(plan.state, plan.scale) : undefined;
+            const outputSize = plan.format === 'video'
+              ? plan.outputSize ?? exportOutputSize(plan.state, plan.scale)
+              : undefined;
             return {
               assetId: uuid,
               kind: plan.format,
@@ -231,7 +233,7 @@ export function registerExportRoute(server: ViteDevServer): void {
         else sendError(res, 400, error instanceof Error ? error.message : String(error));
         return;
       }
-      const { state, format, media, frameRange, filename, scale } = plan;
+      const { state, format, media, frameRange, filename, scale, renderScale, outputSize } = plan;
       const finalOutput = join(tmpdir(), `openchatcut-export-${randomUUID()}.${media.ext}`);
       outputLocation = finalOutput;
       await withExportPermit(async () => {
@@ -242,21 +244,27 @@ export function registerExportRoute(server: ViteDevServer): void {
           outputLocation: finalOutput,
           codec: media.codec,
           frameRange,
-          scale,
+          scale: renderScale,
           videoBitrate: plan.videoBitrate,
           ...await h264RenderOptions(media.codec),
           signal: requestAbort.controller.signal,
         });
         requestAbort.controller.signal.throwIfAborted();
-        if (format === 'video' && plan.retimeFps !== undefined) {
+        if (format === 'video' && (plan.retimeFps !== undefined || outputSize !== undefined)) {
           retimedOutput = `${finalOutput}.retimed.${media.ext}`;
-          const outputSize = exportOutputSize(state, scale);
-          await retimeFps(
+          const finalSize = outputSize ?? exportOutputSize(state, scale);
+          await finalizeVideo(
             finalOutput,
             retimedOutput,
-            plan.retimeFps,
+            {
+              ...(plan.retimeFps !== undefined ? { targetFps: plan.retimeFps } : {}),
+              ...(outputSize ?? {}),
+            },
             media.codec as 'h264' | 'vp8',
-            plan.videoBitrate ?? resolveH264TargetBitrate({ ...outputSize, fps: plan.retimeFps }),
+            plan.videoBitrate ?? resolveH264TargetBitrate({
+              ...finalSize,
+              fps: plan.retimeFps ?? state.fps,
+            }),
             requestAbort.controller.signal,
           );
           requestAbort.controller.signal.throwIfAborted();

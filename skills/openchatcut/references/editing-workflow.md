@@ -43,6 +43,23 @@ argument.
 - Keep generation and other immediate side effects outside a proposal unless
   the exposed tool explicitly supports the draft session.
 
+## Import local media
+
+With the target project open and an `approvalMode: "auto"` edit session, prefer
+`import_local_media` for files already on the OpenChatCut host. Pass an absolute `localPath`; media type and metadata are
+normally inferred. It streams the bytes through the verified upload handoff,
+finalizes the media-pool asset, and places it on the active timeline by default.
+Use `addToTimeline: false` to keep it only in the pool, or pass `trackId`,
+`startFrame`, and `ripple` for exact placement.
+For a multi-source edit, pass up to 32 absolute paths in `localPaths`; their
+receipts are finalized together so the project binding cannot go stale between
+individual assets. Omit `startFrame` for a batch so normal track placement can
+append each item.
+
+The import is a live-project operation. If it advances the project revision,
+refresh/retarget the MCP transport before starting the next draft rather than
+reusing a stale binding.
+
 ## Review and finish
 
 1. Call `review_edit_session` after all draft edits are ready.
@@ -52,3 +69,12 @@ argument.
 5. If the status is `rejected` or `discarded`, report that exact result.
 
 Applied operations form one atomic undo step.
+
+## Export a deliverable
+
+Apply the edit draft before rendering. Start a fresh bound session with
+`approvalMode: "auto"`, then use
+`export_timeline` to submit and wait for the active timeline export. Pass an
+absolute `outputPath` to copy the completed render to a normal local file;
+existing files are preserved unless `overwrite: true`. If the call returns
+`completed: false`, continue with `track_export` and its `renderId`.

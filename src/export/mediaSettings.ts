@@ -70,6 +70,25 @@ export function exportScale(
   return renderPlan(state, resolution).serverScale;
 }
 
+/**
+ * Remotion requires composition width * scale and height * scale to both be
+ * exact integers in JavaScript. Fractional decimal scales can still produce
+ * values such as 486.00000000000006, so use an integer intermediate scale and
+ * resize to the requested dimensions in the final FFmpeg pass.
+ */
+export function remotionSafeRenderScale(
+  state: { width?: unknown; height?: unknown },
+  resolution?: ExportResolution,
+): number {
+  const requested = exportScale(state, resolution);
+  if (!resolution) return requested;
+  const width = Math.round(canvasDimension(state.width, 1920));
+  const height = Math.round(canvasDimension(state.height, 1080));
+  let scale = Math.max(1, Math.ceil(requested));
+  if ((width * scale) % 2 !== 0 || (height * scale) % 2 !== 0) scale += 1;
+  return scale;
+}
+
 export function scaledExportDimensions(
   state: { width?: unknown; height?: unknown },
   resolution?: ExportResolution,

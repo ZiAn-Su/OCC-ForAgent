@@ -346,6 +346,7 @@ export default {
   '重新提案': 'Re-propose',
   '外部 Agent：{message}': 'External agent: {message}',
   '工程已在其他窗口编辑或版本已变化，请关闭其他窗口后手动刷新页面。': 'This project is open in another editor or its version changed. Close the other window, then refresh this page manually.',
+  '工程保存失败或已被其他窗口更新。是否放弃此页面中尚未保存的更改并返回工程列表？': 'The project could not be saved or was updated in another window. Discard unsaved changes on this page and return to the project list?',
   '工程正在其他窗口编辑，无法注册。请关闭其他窗口后重试。': 'This project is being edited in another window; registration failed. Close the other window and try again.',
   '工程正在其他窗口编辑，连接已中断。请关闭其他窗口后重试。': 'This project is being edited in another window; the connection was interrupted. Close the other window and try again.',
   '工程正在其他窗口编辑，结果未能送达。请关闭其他窗口后重试。': 'This project is being edited in another window; the result could not be delivered. Close the other window and try again.',

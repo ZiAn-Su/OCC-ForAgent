@@ -16,6 +16,23 @@ type Args = Record<string, unknown>;
 export async function execUploadTool(name: string, args: Args, ctx: AgentContext): Promise<unknown> {
   if (name === 'import_media') return execImportMediaHandoff(args, ctx);
   if (name === 'finalize_uploaded_asset') return execFinalizeUpload(args, ctx);
+  if (name === 'finalize_uploaded_assets') {
+    const items = Array.isArray(args.items) ? args.items : [];
+    if (!items.length || items.length > 32) return { error: 'items must contain 1 to 32 finalize requests' };
+    const results: unknown[] = [];
+    for (const item of items) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        results.push({ error: 'batch item must be an object' });
+      } else {
+        results.push(await execFinalizeUpload(item as Args, ctx));
+      }
+    }
+    const failed = results.filter((result) => (
+      result && typeof result === 'object' && !Array.isArray(result)
+      && typeof (result as Args).error === 'string'
+    )).length;
+    return { ok: failed === 0, count: results.length, failed, results };
+  }
   if (name === 'request_asset_download') return execRequestDownload(args, ctx);
   return { error: `unknown tool ${name}` };
 }

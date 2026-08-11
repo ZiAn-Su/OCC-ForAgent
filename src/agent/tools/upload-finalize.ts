@@ -353,8 +353,25 @@ async function executeClaimedFinalize(
     const applied = await applyJournalMutation(journal, ctx);
     const confirmation = await confirmReceiptCommit(applied, false);
     if (!confirmation.committed) scheduleReceiptReconciliation(confirmation.journal, ctx);
-    return receiptCommitResult(applied.result, confirmation.committed
+    const result = receiptCommitResult(applied.result, confirmation.committed
       ? 'committed' : 'reconciliation_pending');
+    if (!confirmation.committed || args.addToTimeline !== true) return result;
+    try {
+      const itemId = ctx.commands.addMediaItem(journal.mutation.asset, {
+        ...(typeof args.trackId === 'string' && args.trackId.trim()
+          ? { track: args.trackId.trim() as never }
+          : {}),
+        ...(typeof args.startFrame === 'number' ? { startFrame: Math.floor(args.startFrame) } : {}),
+        ...(args.ripple === true ? { ripple: true } : {}),
+      });
+      return { ...result, addedToTimeline: true, timelineItemId: itemId };
+    } catch (error) {
+      return {
+        ...result,
+        addedToTimeline: false,
+        warning: `Asset finalized, but timeline placement failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   } catch (error) {
     if (journalSaved && journal && mutationMatchesProject(journal.mutation, ctx)) {
       scheduleReceiptReconciliation(journal, ctx);

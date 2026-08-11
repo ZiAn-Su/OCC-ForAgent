@@ -25,8 +25,8 @@ async function configFor(target: string): Promise<BuilderConfig> {
 const arm64 = await configFor('darwin-arm64');
 assert.deepEqual(arm64.publish, [{
   provider: 'github',
-  owner: '0xsline',
-  repo: 'OpenChatCut',
+  owner: 'ZiAn-Su',
+  repo: 'OCC-ForAgent',
   channel: 'latest-arm64',
 }]);
 assert.deepEqual(arm64.mac?.target, ['dmg', 'zip'], 'macOS updates need a zip artifact in addition to the DMG');

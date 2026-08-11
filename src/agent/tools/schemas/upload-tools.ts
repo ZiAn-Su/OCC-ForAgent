@@ -60,6 +60,13 @@ export const UPLOAD_TOOL_SCHEMAS: AgentToolSchema[] = [
         height: { type: 'number', exclusiveMinimum: 0 },
         fps: { type: 'number', exclusiveMinimum: 0, description: 'Optional video fps metadata (stored only if useful).' },
         hasAudioTrack: { type: 'boolean' },
+        addToTimeline: {
+          type: 'boolean',
+          description: 'When true, place the finalized asset on the active timeline in the same live-project operation. Defaults to false for compatibility.',
+        },
+        trackId: { type: 'string', description: 'Optional target track for addToTimeline, such as V1 or A1.' },
+        startFrame: { type: 'integer', minimum: 0, description: 'Optional timeline start frame for addToTimeline.' },
+        ripple: { type: 'boolean', description: 'When placing, push later clips on the target track instead of overwriting.' },
         projectId: { type: 'string' },
       },
       required: ['receipt', 'assetType'],
@@ -70,6 +77,38 @@ export const UPLOAD_TOOL_SCHEMAS: AgentToolSchema[] = [
         },
         then: { required: ['durationInSeconds'] },
       }],
+    },
+  },
+  {
+    name: 'finalize_uploaded_assets',
+    description: 'Finalize up to 32 verified upload receipts as one live-project tool invocation. Intended for MCP batch import so all assets can be registered before the editor binding revision advances.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 32,
+          items: {
+            type: 'object',
+            properties: {
+              receipt: { type: 'string' },
+              assetType: { type: 'string', enum: [...ASSET_TYPES] },
+              durationInSeconds: { type: 'number', exclusiveMinimum: 0 },
+              width: { type: 'number', exclusiveMinimum: 0 },
+              height: { type: 'number', exclusiveMinimum: 0 },
+              fps: { type: 'number', exclusiveMinimum: 0 },
+              hasAudioTrack: { type: 'boolean' },
+              addToTimeline: { type: 'boolean' },
+              trackId: { type: 'string' },
+              startFrame: { type: 'integer', minimum: 0 },
+              ripple: { type: 'boolean' },
+            },
+            required: ['receipt', 'assetType'],
+          },
+        },
+      },
+      required: ['items'],
     },
   },
   {

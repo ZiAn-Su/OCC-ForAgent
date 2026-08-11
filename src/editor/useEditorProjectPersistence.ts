@@ -14,6 +14,7 @@ import type { ProjectSaveResult } from '../persist/projectStoreCoordinators';
 import { showAppToast } from '../ui/appToast';
 import type { EditorCommands } from './store';
 import type { ProjectDoc, TimelineState } from './types';
+import { leaveEditor } from './editorLeave';
 
 type MutableRef<T> = { current: T };
 
@@ -170,14 +171,19 @@ export function useEditorProjectPersistence({
   flushBeforeLeaveRef,
   onHome,
 }: EditorProjectPersistenceOptions): { handleHome: () => Promise<void> } {
+  const t = useT();
   const flushBeforeLeave = useEditorAutosave(projectId, doc);
   flushBeforeLeaveRef.current = flushBeforeLeave;
   useGenerationJobResume(projectId, commands, stateRef, docRef);
   useActiveTimelineSeek(doc.activeTimelineId, playerRef);
 
   const handleHome = useCallback(async (): Promise<void> => {
-    if (await flushBeforeLeave()) onHome();
-  }, [flushBeforeLeave, onHome]);
+    await leaveEditor({
+      flush: flushBeforeLeave,
+      confirmDiscard: () => window.confirm(t('工程保存失败或已被其他窗口更新。是否放弃此页面中尚未保存的更改并返回工程列表？')),
+      leave: onHome,
+    });
+  }, [flushBeforeLeave, onHome, t]);
 
   return { handleHome };
 }

@@ -17,8 +17,8 @@ import type { ExportPlan } from './export-plan.ts';
 import {
   createRenderProgress,
   exportOutputSize,
+  finalizeVideo,
   finalH264EncoderOutcome,
-  retimeFps,
 } from './export-runtime.ts';
 import type { UpdateGenerationJob } from './generation-jobs.ts';
 
@@ -59,7 +59,8 @@ export async function renderExportPlan(
   signal?: AbortSignal,
 ): Promise<H264EncoderOutcome | undefined> {
   signal?.throwIfAborted();
-  const retimed = plan.retimeFps ? `${filepath}.retimed.${plan.media.ext}` : null;
+  const needsFinalPass = plan.retimeFps !== undefined || plan.outputSize !== undefined;
+  const retimed = needsFinalPass ? `${filepath}.finalized.${plan.media.ext}` : null;
   let failureStage: ExportFailureStage = 'render';
   try {
     update({ phase: 'preparing', progress: 4, processedFrames: 0, totalFrames: plan.totalFrames });
@@ -73,24 +74,30 @@ export async function renderExportPlan(
       outputLocation: filepath,
       codec: plan.media.codec,
       frameRange: plan.frameRange,
-      scale: plan.scale,
+      scale: plan.renderScale,
       videoBitrate: plan.videoBitrate,
       ...await h264RenderOptions(plan.media.codec),
-      onProgress: createRenderProgress(update, plan.totalFrames, plan.retimeFps ? 84 : 90),
+      onProgress: createRenderProgress(update, plan.totalFrames, needsFinalPass ? 84 : 90),
       signal,
     }) as Partial<H264EncoderOutcome>;
     signal?.throwIfAborted();
     let outcome = rendered.encoder ? { encoder: rendered.encoder, ...(rendered.encoderFallbackReason ? { encoderFallbackReason: rendered.encoderFallbackReason } : {}) } : undefined;
-    if (retimed && plan.retimeFps) {
+    if (retimed && needsFinalPass) {
       failureStage = 'encode';
       update({ phase: 'finalizing', progress: 93, processedFrames: plan.totalFrames });
-      const outputSize = exportOutputSize(plan.state, plan.scale);
-      outcome = finalH264EncoderOutcome(outcome, await retimeFps(
+      const outputSize = plan.outputSize ?? exportOutputSize(plan.state, plan.scale);
+      outcome = finalH264EncoderOutcome(outcome, await finalizeVideo(
         filepath,
         retimed,
-        plan.retimeFps,
+        {
+          ...(plan.retimeFps !== undefined ? { targetFps: plan.retimeFps } : {}),
+          ...(plan.outputSize ?? {}),
+        },
         plan.media.codec as 'h264' | 'vp8',
-        plan.videoBitrate ?? resolveH264TargetBitrate({ ...outputSize, fps: plan.retimeFps }),
+        plan.videoBitrate ?? resolveH264TargetBitrate({
+          ...outputSize,
+          fps: plan.retimeFps ?? plan.state.fps,
+        }),
         signal,
       ));
       signal?.throwIfAborted();

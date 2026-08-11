@@ -43,5 +43,5 @@ npx skills update openchatcut
 If the source alias is unavailable:
 
 ```bash
-npx skills add 0xsline/OpenChatCut --skill openchatcut
+npx skills add ZiAn-Su/OCC-ForAgent --skill openchatcut
 ```

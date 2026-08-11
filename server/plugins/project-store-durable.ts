@@ -107,8 +107,27 @@ export async function durableRemove(path: string, recursive = false): Promise<vo
   await syncDirectory(dirname(path));
 }
 
+function transientWindowsDirectoryError(error: unknown): boolean {
+  if (process.platform !== 'win32') return false;
+  return ['EACCES', 'EBUSY', 'ENOTEMPTY', 'EPERM'].includes(
+    (error as NodeJS.ErrnoException).code ?? '',
+  );
+}
+
 export async function durableRename(source: string, target: string): Promise<void> {
-  await rename(source, target);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rename(source, target);
+      lastError = undefined;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (!transientWindowsDirectoryError(error) || attempt === 7) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+    }
+  }
+  if (lastError) throw lastError;
   const sourceDirectory = dirname(source);
   const targetDirectory = dirname(target);
   await syncDirectory(sourceDirectory);
@@ -196,6 +215,16 @@ async function canReap(path: string, config: LeaseConfig): Promise<boolean> {
   return owner.expiresAt <= config.now() && !config.isPidAlive(owner.pid);
 }
 
+/** The guard protects only the short filesystem mutation that creates, renews,
+ * or releases the real lease. Unlike the lease itself it has no heartbeat. If
+ * that mutation throws after creating the guard, the owning process may stay
+ * alive indefinitely; expiry must therefore be sufficient to recover it. */
+async function canReapGuard(path: string, config: LeaseConfig): Promise<boolean> {
+  const owner = await readOwner(path);
+  if (!owner) return expiredWithoutOwner(path, config);
+  return owner.expiresAt <= config.now();
+}
+
 async function moveAside(path: string, reason: string): Promise<string | undefined> {
   const moved = `${path}.${reason}.${process.pid}.${randomUUID()}`;
   try {
@@ -230,12 +259,30 @@ async function releaseOwnedDirectory(path: string, token: string): Promise<void>
 }
 
 async function acquireGuard(config: LeaseConfig): Promise<() => Promise<void>> {
+  // A guard covers one local metadata mutation only. Keep its stale timeout
+  // comfortably inside the caller's retry window instead of inheriting the
+  // long-lived lease timeout. This is especially important on Windows, where
+  // a directory rename/remove can fail transiently after the owner file was
+  // closed and otherwise strand every request for the full lease duration.
+  const guardLeaseMs = Math.min(
+    config.leaseMs,
+    Math.max(100, Math.floor(config.retries * config.retryMs / 4)),
+  );
   for (let attempt = 0; attempt < config.retries; attempt += 1) {
-    const owner = { token: randomUUID(), pid: config.pid, expiresAt: config.now() + config.leaseMs };
+    const owner = { token: randomUUID(), pid: config.pid, expiresAt: config.now() + guardLeaseMs };
     if (await createOwnedDirectory(config.guardPath, owner)) {
-      return () => releaseOwnedDirectory(config.guardPath, owner.token);
+      return async () => {
+        try {
+          await releaseOwnedDirectory(config.guardPath, owner.token);
+        } catch (error) {
+          // The guard has no heartbeat and is intentionally short-lived, so a
+          // transient Windows directory handle cannot invalidate completed
+          // project-store work. The next contender will reap it after expiry.
+          if (!transientWindowsDirectoryError(error)) throw error;
+        }
+      };
     }
-    if (await canReap(config.guardPath, config)) {
+    if (await canReapGuard(config.guardPath, config)) {
       const moved = await moveAside(config.guardPath, 'stale');
       if (moved) await durableRemove(moved, true);
       continue;

@@ -116,7 +116,7 @@ const staleOutput = join(tmpdir(), `openchatcut-retime-check-${randomUUID()}.mp4
 await writeFile(staleOutput, 'stale partial output');
 await assert.rejects(
   retimeFps('/definitely/missing/openchatcut-input.mp4', staleOutput, 30, 'vp8', 4_000_000),
-  /ffmpeg fps retime failed/,
+  /ffmpeg video finalization failed/,
 );
 assert.equal(existsSync(staleOutput), false, 'failed FPS conversion must remove partial output');
 

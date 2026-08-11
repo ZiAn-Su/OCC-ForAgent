@@ -32,6 +32,11 @@ import {
   type McpBindingSession,
 } from './mcp-binding.ts';
 import { MCP_CONTROL_TOOL_NAMES, MCP_CONTROL_TOOLS } from './mcp-controls.ts';
+import {
+  executeMcpWorkflowTool,
+  MCP_WORKFLOW_TOOL_NAMES,
+  MCP_WORKFLOW_TOOLS,
+} from './mcp-workflow-tools.ts';
 import { offlineExternalToolSchemas } from './offline-tools.ts';
 import type { OfflineEditorBinding } from './offline-runtime.ts';
 import { createExternalProject, listExternalProjects } from './projects.ts';
@@ -55,7 +60,7 @@ import {
 } from './mcp-result.ts';
 export { toMcpContent, toStructuredContent } from './mcp-result.ts';
 
-export const OPENCHATCUT_SKILL_BASELINE = '2026-08-10.1';
+export const OPENCHATCUT_SKILL_BASELINE = '2026-08-11.1';
 export const MCP_SESSION_IDLE_LIMIT_MS = 60 * 60 * 1000;
 export const MCP_SESSION_COUNT_LIMIT = 64;
 export const MCP_POST_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
@@ -101,7 +106,16 @@ function fullMcpTools(session?: McpSession): Tool[] {
       },
     },
   }));
-  return [...MCP_CONTROL_TOOLS, ...editorTools];
+  const workflowTools = session?.offline || (!hasConnectedBrowser && !session?.binding)
+    ? []
+    : MCP_WORKFLOW_TOOLS.map((tool): Tool => ({
+      ...tool,
+      inputSchema: {
+        ...tool.inputSchema,
+        properties: { ...tool.inputSchema.properties, editorProjectId: PROJECT_SELECTOR },
+      },
+    }));
+  return [...MCP_CONTROL_TOOLS, ...workflowTools, ...editorTools];
 }
 
 export function mcpTools(session?: McpSession): Tool[] {
@@ -127,6 +141,9 @@ function mcpStatus(session: McpSession): Record<string, unknown> {
     availableToolTier: mode === 'offline' || (!mode && !connected.length) ? 'server-direct' : 'browser',
     offlineFallback: 'Target an existing stored project with no browser owner, then begin with approvalMode="auto".',
     browserRequiredFor: ['visual/canvas inspection', 'generation', 'upload', 'network', 'preset', 'render', 'export', 'manual approval'],
+    workflowTools: mode === 'browser' || (!mode && connected.length)
+      ? ['import_local_media', 'export_timeline']
+      : [],
     toolCount: mcpTools(session).length,
     ...mcpToolExposureStatus(session.exposure, mcpTools(session).length, fullMcpTools(session).length),
   };
@@ -206,6 +223,16 @@ async function callTool(
   if (!session.id) throw new ExternalEditorCallError('failed', 'MCP session initialization is incomplete.');
   const binding = bindBrowserForCall(session, args.editorProjectId, allowRevisionDrift);
   delete args.editorProjectId;
+  if (MCP_WORKFLOW_TOOL_NAMES[name] === true) {
+    return executeMcpWorkflowTool(
+      name,
+      binding,
+      args,
+      (target, toolName, toolArgs, timeoutMs) => invokeEditorTool(
+        session.id!, target, toolName, toolArgs, timeoutMs,
+      ),
+    );
+  }
   if ((name === 'track_progress' || name === 'track_export') && args.action === 'wait') {
     const requested = Number(args.timeoutSeconds);
     args.timeoutSeconds = Math.min(45, requested > 0 ? requested : 45);
@@ -257,7 +284,7 @@ function makeServer(baseUrl: string, session: McpSession): Server {
           ? 'This client negotiated progressive tool exposure. Call ToolSearch or load_skill to reveal task tools; tools/list_changed is sent when the visible set grows.'
           : 'This client uses the compatibility tool surface. All currently available tools are listed.',
         'Call begin_edit_session first, pass editSessionId to every editor tool, then call review_edit_session. Do not claim success until status is applied.',
-        'Manual approval and visual/canvas inspection, generation, upload, network, preset, render, and export tools require opening the returned editorUrl.',
+        'Manual approval and visual/canvas inspection, generation, upload, network, preset, render, and export tools require opening the returned editorUrl. Use import_local_media for a local path and export_timeline for a rendered file saved to a local path.',
         'Offline review atomically commits the complete draft. A browser takeover or stored-project change makes the session stale with no partial edit.',
         'If a session becomes stale, cancelled, or failed, start a new MCP session instead of reusing it.',
       ].join(' '),
