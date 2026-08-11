@@ -1,10 +1,20 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chmod } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { atomicWriteFile } from './plugins/project-store-durable.ts';
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * One MCP credential per local user installation. It deliberately lives
+ * outside isolated development profiles so switching between source, test,
+ * and packaged runtimes cannot silently change the effective token.
+ */
+export function globalMcpTokenPath(homeDir = homedir()): string {
+  return join(homeDir, '.openchatcut', 'project-store-auth-v1', 'mcp-token-v1');
+}
 
 function newToken(): string {
   return randomBytes(32).toString('base64url');

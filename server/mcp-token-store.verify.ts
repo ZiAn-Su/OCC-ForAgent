@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { McpTokenStore } from './mcp-token-store.ts';
+import { globalMcpTokenPath, McpTokenStore } from './mcp-token-store.ts';
 
 const fixture = await mkdtemp(join(tmpdir(), 'openchatcut-mcp-token-'));
 try {
+  assert.equal(
+    globalMcpTokenPath(fixture),
+    join(fixture, '.openchatcut', 'project-store-auth-v1', 'mcp-token-v1'),
+    'the MCP token path must be user-global and independent of runtime profiles',
+  );
   const path = join(fixture, 'private', 'mcp-token-v1');
   const firstStore = new McpTokenStore(path, () => undefined);
   const first = firstStore.current();
