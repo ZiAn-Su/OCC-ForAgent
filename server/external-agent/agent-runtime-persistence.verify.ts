@@ -321,6 +321,31 @@ async function verifyNewOfflineRunAdoptsCurrentGeneration(): Promise<void> {
   );
 }
 
+async function verifyNewRunRetriesTransientLeaseRejection(): Promise<void> {
+  const projectId = 'transient-run-lease-retry-verify';
+  const store = memoryStore();
+  const updateLease = store.backend.updateAgentRunLease.bind(store.backend);
+  let claimAttempts = 0;
+  store.backend.updateAgentRunLease = async (input) => {
+    if (input.action === 'claim' && claimAttempts++ === 0) {
+      return {
+        accepted: false,
+        found: true,
+        value: store.entries.get(input.key),
+      };
+    }
+    return updateLease(input);
+  };
+  configureOfflineAgentRuntimeBackend(store.backend);
+  const recorder = await startAgentRun({
+    projectId,
+    userInput: 'transient lease rejection',
+    askOnly: false,
+  });
+  assert.equal(claimAttempts, 2, 'a newly-created run retries one transient lease rejection');
+  await recorder.releaseLease();
+}
+
 const realNow = Date.now;
 let now = 1_000_000;
 Date.now = () => now;
@@ -329,6 +354,7 @@ try {
   now += 1_001;
   await verifyOfflineAuditRestart();
   await verifyNewOfflineRunAdoptsCurrentGeneration();
+  await verifyNewRunRetriesTransientLeaseRejection();
 } finally {
   Date.now = realNow;
   resetAgentRuntimeStoreMemory();

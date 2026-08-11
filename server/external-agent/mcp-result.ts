@@ -4,6 +4,7 @@ import {
   sanitizeJsonForArtifact,
 } from '../../src/agent/runtime-artifact.ts';
 import { TOOL_ARTIFACT_THRESHOLD } from '../../src/agent/runtime-ledger.ts';
+import { EXTERNAL_EXACT_SKILL_RESULT_LIMIT } from '../../src/agent/external-result-limits.ts';
 import { ExternalEditorCallError } from './broker.ts';
 
 interface EmbeddedImage {
@@ -16,7 +17,7 @@ interface EmbeddedImage {
 // playbooks with file/offset/nextOffset. Keep that exact, recoverable protocol
 // intact instead of treating a valid skill page as an unarchived tool result.
 // The extra headroom covers MCP activation metadata appended after the tool call.
-export const MCP_EXACT_SKILL_RESULT_LIMIT = 72_000;
+export const MCP_EXACT_SKILL_RESULT_LIMIT = EXTERNAL_EXACT_SKILL_RESULT_LIMIT;
 
 interface McpReplyProjectionOptions {
   exactSkillResult?: boolean;

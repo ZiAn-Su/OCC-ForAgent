@@ -19,7 +19,7 @@ import {
   type BrowserProjectOwnership,
 } from '../persist/projectStoreTransport';
 import { redactTextForAgentRuntime, sanitizeJsonForArtifact } from './runtime-artifact';
-import { TOOL_ARTIFACT_THRESHOLD } from './runtime-ledger';
+import { externalResultLimit } from './external-result-limits';
 import { externalBridgeCanStart, type ExternalBridgeReadinessToken } from './external-bridge-readiness';
 import {
   EditorBridgeRequestError,
@@ -74,7 +74,7 @@ function retryDelay(): Promise<void> {
 }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-function projectExternalReply(value: unknown): unknown {
+function projectExternalReply(value: unknown, toolName?: string): unknown {
   const sanitized = sanitizeJsonForArtifact(value);
   if (!sanitized) {
     throw new ExternalEditSessionOutcomeError(
@@ -82,10 +82,12 @@ function projectExternalReply(value: unknown): unknown {
       'The external result could not be serialized safely.',
     );
   }
-  if (sanitized.originalChars > TOOL_ARTIFACT_THRESHOLD) {
+  if (sanitized.originalChars > externalResultLimit(toolName)) {
     throw new ExternalEditSessionOutcomeError(
       'failed',
-      'The external result was too large and no recoverable artifact reference was available.',
+      toolName === 'load_skill'
+        ? 'The skill result exceeded its bounded external page. Retry load_skill with file, offset, and a smaller limit.'
+        : 'The external result was too large and no recoverable artifact reference was available.',
     );
   }
   return JSON.parse(sanitized.body);
@@ -128,6 +130,7 @@ export async function executeExternalCall(
     try {
       value = projectExternalReply(
         await runtime.execute(call.name, call.arguments, call.binding, controller.signal),
+        call.name,
       );
     } catch (error) {
       const failed = failedOutcome(error, controller.signal);

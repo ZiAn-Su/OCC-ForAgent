@@ -35,6 +35,7 @@ const SUMMARY_CHARS = 1_200;
 const TERMINAL = new Set<AgentRunStatus>(['completed', 'failed', 'aborted', 'interrupted']);
 const AGENT_RUN_LEASE_MS = 120_000;
 const AGENT_RUN_HEARTBEAT_MS = 30_000;
+const AGENT_RUN_CLAIM_RETRY_DELAYS_MS = [0, 15, 50] as const;
 const RUN_OWNER_KEY = 'openchatcut.agent-run-owner';
 
 function runOwnerInstanceId(): string {
@@ -491,16 +492,27 @@ export async function startAgentRun(input: StartAgentRunInput): Promise<AgentRun
     artifactIds: [], checkpointIds: [], proposalIds: [], events: [],
   };
   await createAgentRun(run);
-  const lease = await updateAgentRunLease(
-    input.projectId,
-    runId,
-    RUN_OWNER_INSTANCE_ID,
-    undefined,
-    now + AGENT_RUN_LEASE_MS,
-    true,
-    now,
-  );
-  if (!lease) throw new Error(`Agent run ownership could not be claimed: ${runId}`);
+  let lease = null;
+  for (const retryDelayMs of AGENT_RUN_CLAIM_RETRY_DELAYS_MS) {
+    if (retryDelayMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+    const claimNow = Date.now();
+    lease = await updateAgentRunLease(
+      input.projectId,
+      runId,
+      RUN_OWNER_INSTANCE_ID,
+      undefined,
+      claimNow + AGENT_RUN_LEASE_MS,
+      true,
+      claimNow,
+    );
+    if (lease) break;
+  }
+  if (!lease) {
+    await recoverInterruptedAgentRuns(input.projectId, Date.now()).catch(() => undefined);
+    throw new Error(`Agent run ownership could not be claimed after retries: ${runId}`);
+  }
   return new AgentRunRecorder(input.projectId, runId, lease.leaseToken);
 }
 export async function resumeAgentRun(projectId: string, runId: string, claimedLeaseToken?: string): Promise<AgentRunRecorder | null> {

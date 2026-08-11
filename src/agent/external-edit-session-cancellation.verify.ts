@@ -157,12 +157,26 @@ const adapterRuntime = {
   async execute(name: string): Promise<unknown> {
     return name === 'oversized-adapter-result'
       ? { payload: 'raw-connected-result-'.repeat(1_000) }
+      : name === 'load_skill'
+        ? { skill: 'create-motion-graphics', contents: { 'SKILL.md': 'motion-rule-'.repeat(2_500) } }
       : { apiKey: 'small-connected-secret', ok: true };
   },
 };
 const captureAdapterDelivery: ExternalResultSender = async (_id, outcome, value) => {
   adapterDeliveries.push({ outcome, value });
 };
+await executeExternalCall(
+  {
+    id: 'bounded-load-skill-call',
+    name: 'load_skill',
+    arguments: { name: 'create-motion-graphics' },
+    binding: concurrentBinding,
+  },
+  adapterRuntime,
+  adapterBridge.signal,
+  adapterCancellations,
+  captureAdapterDelivery,
+);
 await executeExternalCall(
   {
     id: 'oversized-adapter-call',
@@ -187,10 +201,17 @@ await executeExternalCall(
   adapterCancellations,
   captureAdapterDelivery,
 );
-assert.equal(adapterDeliveries[0]?.outcome, 'failed');
-assert.match(String(adapterDeliveries[0]?.value), /no recoverable artifact reference/);
-assert.ok(JSON.stringify(adapterDeliveries[0]?.value).length < 300);
-assert.deepEqual(adapterDeliveries[1], {
+assert.equal(adapterDeliveries[0]?.outcome, 'applied');
+assert.equal(
+  (adapterDeliveries[0]?.value as { contents?: Record<string, string> })
+    .contents?.['SKILL.md'].length,
+  30_000,
+  'bounded load_skill playbooks must cross the browser bridge exactly',
+);
+assert.equal(adapterDeliveries[1]?.outcome, 'failed');
+assert.match(String(adapterDeliveries[1]?.value), /no recoverable artifact reference/);
+assert.ok(JSON.stringify(adapterDeliveries[1]?.value).length < 300);
+assert.deepEqual(adapterDeliveries[2], {
   outcome: 'applied',
   value: { apiKey: '[REDACTED]', ok: true },
 });
