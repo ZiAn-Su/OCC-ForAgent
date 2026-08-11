@@ -4,9 +4,9 @@
 
 <h1 align="center">OCC-ForAgent</h1>
 
-<p align="center"><strong>OpenChatCut for Agent · v0.2.1</strong></p>
+<p align="center"><strong>OpenChatCut for Agent · v0.2.2</strong></p>
 
-> OCC-ForAgent is an agent-focused distribution based on [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut). Version 0.2.1 adds end-to-end MCP local-media import, timeline editing, and video export, while preserving the upstream AGPL-3.0-or-later license and attribution. The desktop application keeps the OpenChatCut product name and data directories in this release for compatibility.
+> OCC-ForAgent is an agent-focused distribution based on [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut). Version 0.2.2 adds unattended MCP project CRUD/opening, server-direct editing, resilient FFmpeg discovery, and a persistent locally managed MCP token with rotation, while preserving the upstream AGPL-3.0-or-later license and attribution. The desktop application keeps the OpenChatCut product name and data directories in this release for compatibility.
 
 <p align="center">
   <a href="README_ZH.md">简体中文</a> · <strong>English</strong>
@@ -243,7 +243,7 @@ Installable visual resources use the editor's `openchatcut-plugin@1` format and 
 
 ### Desktop installers
 
-Download OCC-ForAgent builds from [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest). Version 0.2.1 currently publishes a Windows x64 installer; additional platform builds can be produced from source. Upstream OpenChatCut releases remain available from the [upstream repository](https://github.com/0xsline/OpenChatCut/releases).
+Download OCC-ForAgent builds from [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest). Version 0.2.2 targets Windows x64 first; additional platform builds can be produced from source. Upstream OpenChatCut releases remain available from the [upstream repository](https://github.com/0xsline/OpenChatCut/releases).
 
 These are early builds. The macOS packages are not yet signed or notarized, so the operating system may require manual approval on first launch.
 
@@ -407,6 +407,23 @@ OPENCHATCUT_EDITOR_URL=https://your-editor.example.com
 
 Clients must send `Authorization: Bearer <token>`. The current bridge is designed for a single user on one machine, not as a multi-tenant service.
 
+### Adding usable media and creative assets
+
+The repository already ships sound effects, code-native transitions and WebGL effects,
+two `.cube` LUTs, and three template collections. There are two extension paths:
+
+| Goal | Recommended path |
+|---|---|
+| Use personal video, music, images, or overlays | Import absolute local paths through MCP, drag files into the media pool, or configure a watched media folder. No rebuild is required. |
+| Bundle a sound effect for every user | Add a licensed MP3 to `assets/sound-effects/<id>.mp3` and register its metadata, duration, keywords, and waveform peaks in `src/audio/soundLibrary.ts`. |
+| Bundle background music | Prefer local import/watched folders today. A distributable built-in music collection should add a licensed manifest and a dedicated music-library category rather than treating demo files in `assets/audio/` as production tracks. |
+| Add a motion-graphic template | Add the template JSON to `assets/templates/` and import the collection from `src/editor/initial.ts`. |
+| Add a LUT | Install/export it as a resource plugin, or add the `.cube` file under `assets/luts/` and register its definition in `src/gl/fx/effects.ts`. |
+| Add a transition or visual effect | Prefer a resource plugin or Agent-generated custom shader. Built-ins require the GLSL implementation plus registration in `src/editor/transitionTypes.ts`, `src/gl/transitions.ts`, or `src/gl/fx/effects.ts`. |
+
+Only redistribute media whose license permits bundling and public repository distribution;
+record its author, source URL, license, and any attribution requirement alongside the asset.
+
 ---
 
 ## Architecture
@@ -511,7 +528,7 @@ This list covers the project's major technical foundations. It does not replace 
 
 ## Changelog
 
-See the bilingual [`CHANGELOG.md`](CHANGELOG.md) and [`RELEASE_NOTES_v0.2.1.md`](RELEASE_NOTES_v0.2.1.md) for notable changes, or browse published packages on [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases).
+See the bilingual [`CHANGELOG.md`](CHANGELOG.md) and [`RELEASE_NOTES_v0.2.2.md`](RELEASE_NOTES_v0.2.2.md) for notable changes, or browse published packages on [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases).
 
 ---
 

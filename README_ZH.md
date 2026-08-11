@@ -4,9 +4,9 @@
 
 <h1 align="center">OCC-ForAgent</h1>
 
-<p align="center"><strong>OpenChatCut for Agent · v0.2.1</strong></p>
+<p align="center"><strong>OpenChatCut for Agent · v0.2.2</strong></p>
 
-> OCC-ForAgent 是基于 [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut) 的 Agent 专用增强发行版。v0.2.1 新增 MCP 本地素材导入、时间线剪辑与视频导出的完整链路，并继续保留上游的 AGPL-3.0-or-later 许可证和署名。为保持兼容，本版本桌面应用内部仍使用 OpenChatCut 名称及原有数据目录。
+> OCC-ForAgent 是基于 [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut) 的 Agent 专用增强发行版。v0.2.2 新增无人值守 MCP 工程增删改查与打开、服务端直接剪辑、FFmpeg 自动容错，以及可持久化和轮换的本机 MCP Token，并继续保留上游的 AGPL-3.0-or-later 许可证和署名。为保持兼容，本版本桌面应用内部仍使用 OpenChatCut 名称及原有数据目录。
 
 <p align="center">
   <strong>简体中文</strong> · <a href="README.md">English</a>
@@ -243,7 +243,7 @@ OpenChatCut 是 **开源 ChatCut 替代方案**：把 **对话式 Agent** 和 **
 
 ### 桌面安装包
 
-从 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest) 下载 OCC-ForAgent。v0.2.1 当前发布 Windows x64 安装包，其他平台可从源码构建；上游 OpenChatCut 的安装包仍可从[上游仓库](https://github.com/0xsline/OpenChatCut/releases)获取。
+从 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest) 下载 OCC-ForAgent。v0.2.2 优先提供 Windows x64 安装包，其他平台可从源码构建；上游 OpenChatCut 的安装包仍可从[上游仓库](https://github.com/0xsline/OpenChatCut/releases)获取。
 
 这些仍是早期构建。macOS 安装包尚未签名和公证，首次启动时可能需要在系统设置中手动允许。
 
@@ -401,6 +401,22 @@ OPENCHATCUT_EDITOR_URL=https://your-editor.example.com
 
 客户端使用 `Authorization: Bearer <token>`。当前桥接面按单机单用户设计，不作为多租户服务。
 
+### 增加可供 Agent 使用的素材
+
+仓库目前已经内置音效、代码实现的转场与 WebGL 特效、两个 `.cube` LUT，以及三组模板。
+扩充时分为“个人素材”和“随软件发布的公共素材”两条路径：
+
+| 目标 | 推荐方式 |
+|---|---|
+| 使用自己的视频、音乐、图片或叠加素材 | 通过 MCP 导入本地绝对路径、拖入素材池，或配置监听素材文件夹；无需重新构建。 |
+| 给所有用户内置音效 | 将有合法授权的 MP3 放入 `assets/sound-effects/<id>.mp3`，并在 `src/audio/soundLibrary.ts` 注册名称、时长、关键词和波形峰值。 |
+| 内置背景音乐 | 当前优先使用本地导入或监听文件夹。若要随软件分发音乐库，应新增带许可证信息的清单和独立音乐分类，不应直接把 `assets/audio/` 的演示音轨当作正式曲库。 |
+| 增加 MG 模板 | 将模板 JSON 放入 `assets/templates/`，并在 `src/editor/initial.ts` 导入该模板集合。 |
+| 增加 LUT | 优先制作成资源插件；也可把 `.cube` 放入 `assets/luts/`，并在 `src/gl/fx/effects.ts` 注册。 |
+| 增加转场或视觉特效 | 优先使用资源插件或让 Agent 生成自定义 Shader。内置项需要同时添加 GLSL 实现，并在 `src/editor/transitionTypes.ts`、`src/gl/transitions.ts` 或 `src/gl/fx/effects.ts` 注册。 |
+
+只有许可证明确允许打包和公开仓库再分发的素材才能内置；请同时记录作者、来源链接、许可证和署名要求。
+
 ---
 
 ## 架构
@@ -505,7 +521,7 @@ OpenChatCut 基于以下核心项目与规范构建：
 
 ## 更新日志
 
-重要变更见中英双语的 [`CHANGELOG.md`](CHANGELOG.md) 与 [`RELEASE_NOTES_v0.2.1.md`](RELEASE_NOTES_v0.2.1.md)，安装包与源码包见 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases)。
+重要变更见中英双语的 [`CHANGELOG.md`](CHANGELOG.md) 与 [`RELEASE_NOTES_v0.2.2.md`](RELEASE_NOTES_v0.2.2.md)，安装包与源码包见 [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases)。
 
 ---
 

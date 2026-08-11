@@ -6,6 +6,22 @@ OpenChatCut 的重要变更记录在此。
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).  
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.2] - 2026-08-11
+
+### Added / 新增
+
+- Added MCP project create/list/read/update/delete/open operations and server-direct project binding for unattended agents.
+  新增 MCP 工程创建、列表、查看、修改、删除、打开，以及面向无人值守智能体的服务端直接工程绑定。
+- Added a persistent per-profile local MCP token with trusted-editor rotation; ordinary restarts no longer require client reconfiguration.
+  新增按运行配置持久化的本机 MCP Token 与受信任编辑器轮换功能，普通重启无需重新配置客户端。
+
+### Fixed / 修复
+
+- Added FFmpeg/FFprobe existence checks and Remotion-binary fallback so source exports survive incomplete `ffmpeg-static` installs.
+  新增 FFmpeg/FFprobe 文件检查与 Remotion 二进制回退，源码导出不再因 `ffmpeg-static` 安装不完整而失败。
+- Removed stale browser-only tool exposure assumptions from offline MCP workflows and clarified project targeting in the Agent skill and documentation.
+  修复离线 MCP 工作流残留的浏览器工具暴露限制，并在 Agent 技能和文档中明确工程选择方式。
+
 ## [0.2.1] - 2026-08-11
 
 ### Added / 新增
@@ -508,6 +524,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Added Electron desktop packaging for macOS, Windows, and Linux.  
   提供 macOS、Windows 与 Linux 的 Electron 桌面端打包能力。
 
+[0.2.2]: https://github.com/ZiAn-Su/OCC-ForAgent/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/ZiAn-Su/OCC-ForAgent/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/0xsline/OpenChatCut/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/0xsline/OpenChatCut/compare/v0.1.8...v0.1.9
