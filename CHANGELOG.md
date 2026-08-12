@@ -6,6 +6,13 @@ OpenChatCut 的重要变更记录在此。
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).  
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.3] - 2026-08-12
+
+### Fixed
+
+- Added `recover_edit_session` for browser-bound MCP projects. A fresh authenticated transport can release a draft left by a disconnected transport and continue the same project; `force: true` explicitly handles transports that failed without a close frame.
+- Preserved trusted localhost editor launch origins, accepted bounded `load_skill` playbooks, and hardened transient Agent-run ownership recovery for long-running MCP workflows.
+
 ## [0.2.2] - 2026-08-11
 
 ### Added / 新增

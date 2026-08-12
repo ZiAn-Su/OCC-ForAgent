@@ -18,6 +18,7 @@ import {
   ExternalEditorCallError,
   invokeEditorTool,
   onRegisteredToolsChanged,
+  recoverEditorEditSession,
   registeredTools,
   type EditorBinding,
 } from './broker.ts';
@@ -306,6 +307,42 @@ async function callControlTool(
     const projectId = projectForRead(session, args.projectId);
     return { projectId, editorUrl: editorUrl(args, projectId, baseUrl) };
   }
+  if (name === 'recover_edit_session') {
+    if (session.offline) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        'recover_edit_session requires an open browser editor project.',
+      );
+    }
+    if (!session.id) throw new ExternalEditorCallError('failed', 'MCP session initialization is incomplete.');
+    const binding = bindBrowserForCall(session, undefined);
+    try {
+      const discarded = await recoverEditorEditSession(
+        session.id,
+        binding,
+        args.editSessionId,
+        args.force === true,
+      );
+      return {
+        recoveredEditSessionId: typeof args.editSessionId === 'string' ? args.editSessionId.trim() : null,
+        status: 'cancelled',
+        discarded,
+      };
+    } catch (error) {
+      if (
+        error instanceof ExternalEditorCallError
+        && error.outcome === 'rejected'
+        && /^Unknown edit session /.test(error.message)
+      ) {
+        return {
+          recoveredEditSessionId: typeof args.editSessionId === 'string' ? args.editSessionId.trim() : null,
+          status: 'already_gone',
+          note: 'The editor no longer has this edit session, so a new edit session can be started.',
+        };
+      }
+      throw error;
+    }
+  }
   return undefined;
 }
 
@@ -407,7 +444,7 @@ function makeServer(baseUrl: string, session: McpSession): Server {
         'Call begin_edit_session first, pass editSessionId to every editor tool, then call review_edit_session. Do not claim success until status is applied.',
         'Manual approval and visual/canvas inspection, generation, upload, network, preset, render, and export tools require opening the returned editorUrl. Use import_local_media for a local path and export_timeline for a rendered file saved to a local path.',
         'Offline review atomically commits the complete draft. A browser takeover or stored-project change makes the session stale with no partial edit.',
-        'If a session becomes stale, cancelled, or failed, start a new MCP session instead of reusing it.',
+        'If a prior MCP transport disappears while its edit session is active, open the same project in a new transport and call recover_edit_session with that editSessionId before beginning a replacement session. Use force:true only when the old transport did not close cleanly.',
       ].join(' '),
     },
   );

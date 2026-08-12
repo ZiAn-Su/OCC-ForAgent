@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
+  cancelEditorCallsForOwner,
   ExternalEditorCallError,
   invokeEditorTool,
   nextEditorCall,
@@ -345,6 +346,80 @@ async function verifyOwnerDiscard(
   assert.equal(callStatus(await pending), 'cancelled');
 }
 
+async function verifyDisconnectedSessionRecovery(
+  context: SessionVerifierContext,
+): Promise<void> {
+  const abandoned = await beginOwnedDiscard(context);
+  // This is the broker cleanup performed by forgetSession when the original
+  // transport actually closes. Client.close() alone does not send DELETE.
+  cancelEditorCallsForOwner(abandoned.client.sessionId);
+  await closeClient(abandoned.client);
+
+  const recovery = await targetClient(context, 'openchatcut-mcp-session-recovery');
+  const pending = recovery.client.callTool({
+    name: 'recover_edit_session',
+    arguments: { editSessionId: abandoned.editSessionId },
+  });
+  const call = await takeEditorCall(context, recovery, context.editorId, 'v5-mcp-project-a-unrelated');
+  assert.equal(call.name, 'discard_edit_session');
+  assert.equal(call.arguments.editSessionId, abandoned.editSessionId);
+  settleEditorCall(call.id, 'applied', {
+    editSessionId: abandoned.editSessionId,
+    status: 'cancelled',
+  });
+  assert.equal(callStatus(await pending), 'cancelled');
+
+  const replacement = recovery.client.callTool({
+    name: 'begin_edit_session',
+    arguments: { approvalMode: 'manual' },
+  });
+  const replacementCall = await takeEditorCall(
+    context, recovery, context.editorId, 'v5-mcp-project-a-unrelated',
+  );
+  assert.equal(replacementCall.name, 'begin_edit_session');
+  settleEditorCall(replacementCall.id, 'applied', {
+    editSessionId: 'replacement-after-recovery',
+    status: 'drafting',
+  });
+  assert.equal(callStatus(await replacement), 'drafting');
+
+  const releaseReplacement = recovery.client.callTool({
+    name: 'discard_edit_session',
+    arguments: { editSessionId: 'replacement-after-recovery' },
+  });
+  const releaseCall = await takeEditorCall(
+    context, recovery, context.editorId, 'v5-mcp-project-a-unrelated',
+  );
+  settleEditorCall(releaseCall.id, 'applied', {
+    editSessionId: 'replacement-after-recovery',
+    status: 'cancelled',
+  });
+  assert.equal(callStatus(await releaseReplacement), 'cancelled');
+
+  const active = await beginOwnedDiscard(context);
+  const forcedRecovery = await targetClient(context, 'openchatcut-mcp-session-forced-recovery');
+  const ordinary = await forcedRecovery.client.callTool({
+    name: 'recover_edit_session',
+    arguments: { editSessionId: active.editSessionId },
+  });
+  assert.equal(callOutcome(ordinary), 'rejected');
+  assert.equal(pendingEditorCallsForTest(forcedRecovery.sessionId).length, 0);
+
+  const forcePending = forcedRecovery.client.callTool({
+    name: 'recover_edit_session',
+    arguments: { editSessionId: active.editSessionId, force: true },
+  });
+  const forceCall = await takeEditorCall(
+    context, forcedRecovery, context.editorId, 'v5-mcp-project-a-unrelated',
+  );
+  assert.equal(forceCall.name, 'discard_edit_session');
+  settleEditorCall(forceCall.id, 'applied', {
+    editSessionId: active.editSessionId,
+    status: 'cancelled',
+  });
+  assert.equal(callStatus(await forcePending), 'cancelled');
+}
+
 async function beginRejectedSession(context: SessionVerifierContext): Promise<AppliedSession> {
   const client = await targetClient(context, 'openchatcut-mcp-manual-rejected');
   const editSessionId = 'manual-rejected-edit-session';
@@ -453,6 +528,7 @@ export async function verifyMcpEditSessions(context: SessionVerifierContext): Pr
   await verifyPrivateActiveConflict(context, intruder, owned);
   await verifyCompetingDiscard(intruder, owned);
   await verifyOwnerDiscard(context, owned);
+  await verifyDisconnectedSessionRecovery(context);
   const rejected = await beginRejectedSession(context);
   const switchedEditor = await rejectAndSwitchEditor(context, rejected);
   await verifyStaleDiscard(context, switchedEditor);

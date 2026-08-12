@@ -4,9 +4,9 @@
 
 <h1 align="center">OCC-ForAgent</h1>
 
-<p align="center"><strong>OpenChatCut for Agent · v0.2.2</strong></p>
+<p align="center"><strong>OpenChatCut for Agent · v0.2.3</strong></p>
 
-> OCC-ForAgent is an agent-focused distribution based on [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut). Version 0.2.2 adds unattended MCP project CRUD/opening, server-direct editing, resilient FFmpeg discovery, and a persistent locally managed MCP token with rotation, while preserving the upstream AGPL-3.0-or-later license and attribution. The desktop application keeps the OpenChatCut product name and data directories in this release for compatibility.
+> OCC-ForAgent is an agent-focused distribution based on [OpenChatCut v0.2.0](https://github.com/0xsline/OpenChatCut). Version 0.2.3 hardens unattended MCP editing: persistent local authentication, reliable editor launch origins, bounded skill loading, and recovery for orphaned edit sessions. It preserves the upstream AGPL-3.0-or-later license and attribution. The desktop application keeps the OpenChatCut product name and data directories in this release for compatibility.
 
 <p align="center">
   <a href="README_ZH.md">简体中文</a> · <strong>English</strong>
@@ -243,7 +243,7 @@ Installable visual resources use the editor's `openchatcut-plugin@1` format and 
 
 ### Desktop installers
 
-Download OCC-ForAgent builds from [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest). Version 0.2.2 targets Windows x64 first; additional platform builds can be produced from source. Upstream OpenChatCut releases remain available from the [upstream repository](https://github.com/0xsline/OpenChatCut/releases).
+Download OCC-ForAgent builds from [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases/latest). Version 0.2.3 targets Windows x64 first; additional platform builds can be produced from source. Upstream OpenChatCut releases remain available from the [upstream repository](https://github.com/0xsline/OpenChatCut/releases).
 
 These are early builds. The macOS packages are not yet signed or notarized, so the operating system may require manual approval on first launch.
 
@@ -363,6 +363,8 @@ Codex app/CLI and Claude Code use the same session workflow:
 Approval in Codex or Claude controls whether the client may call a tool. OpenChatCut project approval is required only for `manual` sessions; `auto` sessions explicitly bypass that review. Either mode commits the applied operations atomically as one undo step.
 If an `auto` session becomes stale, it returns an error instead of falling back to manual approval; discard it and start a new session.
 Draft-safe edits remain isolated until review. Live-project operations use the same edit-session identity but run separately from the proposal: manual sessions require a one-shot confirmation in OpenChatCut, while auto sessions run them unattended. For end-to-end local automation, `import_local_media` accepts an absolute host path and can place the finalized asset directly on a track; after applying draft edits, `export_timeline` renders the active timeline and can save the completed file to an absolute host path. Both tools require the target project to be open.
+
+If an MCP client or agent process is interrupted while an edit session is active, do not abandon the project. In a fresh MCP transport, call `open_project` for the same project and then call `recover_edit_session` with the prior `editSessionId`. This safely discards the disconnected draft so a replacement session can begin. If the old transport did not close cleanly, repeat with `force: true`; that explicit action takes over and discards the old draft.
 
 ### Codex
 
@@ -528,7 +530,7 @@ This list covers the project's major technical foundations. It does not replace 
 
 ## Changelog
 
-See the bilingual [`CHANGELOG.md`](CHANGELOG.md) and [`RELEASE_NOTES_v0.2.2.md`](RELEASE_NOTES_v0.2.2.md) for notable changes, or browse published packages on [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases).
+See the bilingual [`CHANGELOG.md`](CHANGELOG.md) and [`RELEASE_NOTES_v0.2.3.md`](RELEASE_NOTES_v0.2.3.md) for notable changes, or browse published packages on [GitHub Releases](https://github.com/ZiAn-Su/OCC-ForAgent/releases).
 
 ---
 

@@ -128,6 +128,19 @@ export const MCP_CONTROL_TOOLS: Tool[] = [
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
+  {
+    name: 'recover_edit_session',
+    description: 'Discard an edit session left behind by a disconnected MCP transport in this already-open project. Normal use clears an orphan; force:true is required to take over a still-recorded transport after it has failed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        editSessionId: { type: 'string', description: 'The orphaned editSessionId reported by the failed workflow.' },
+        force: { type: 'boolean', description: 'Required only when the old MCP transport did not close cleanly. This discards its active draft.' },
+      },
+      required: ['editSessionId'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  },
 ];
 
 export const MCP_CONTROL_TOOL_NAMES: Record<string, true> = Object.fromEntries(

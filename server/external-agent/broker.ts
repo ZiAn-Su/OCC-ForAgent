@@ -367,6 +367,71 @@ export function invokeEditorTool(
   });
 }
 
+/**
+ * Explicit recovery path for a draft whose MCP transport disappeared.  A
+ * normal discard remains transport-owned; callers must opt in to `force` to
+ * release an edit session that is still recorded against another transport.
+ * The current editor binding is always checked, so this can never operate a
+ * session in a different project.
+ */
+export function recoverEditorEditSession(
+  ownerId: string,
+  binding: EditorBinding,
+  editSessionId: unknown,
+  force = false,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<unknown> {
+  if (typeof editSessionId !== 'string' || !editSessionId.trim()) {
+    throw new ExternalEditorCallError('rejected', 'editSessionId is required.');
+  }
+  const sessionId = editSessionId.trim();
+  const existing = editSessionOwners.get(sessionId);
+  if (existing && existing.binding.projectId !== binding.projectId) {
+    throw new ExternalEditorCallError(
+      'rejected',
+      'The requested edit session belongs to a different OpenChatCut project.',
+    );
+  }
+  if (existing && existing.ownerId !== ownerId && !force) {
+    throw new ExternalEditorCallError(
+      'rejected',
+      'The edit session is still owned by another MCP transport. Retry with force:true only after that transport has failed.',
+    );
+  }
+  // Once its owner has closed, cancelEditorCallsForOwner already removes this
+  // entry. A forced recovery handles clients that died without a close frame.
+  if (existing) editSessionOwners.delete(sessionId);
+  requireCurrentBinding(binding, false);
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + Math.min(MAX_TIMEOUT_MS, Math.max(1_000, timeoutMs));
+    const call: QueuedCall = {
+      id: randomUUID(),
+      ownerId,
+      binding: { ...binding },
+      name: 'discard_edit_session',
+      arguments: { editSessionId: sessionId },
+      state: 'queued',
+      allowRevisionDrift: false,
+      deadline,
+      resolve,
+      reject,
+      timer: setTimeout(() => {
+        finishCall(
+          call,
+          'cancelled',
+          'OpenChatCut tool discard_edit_session timed out before a terminal result was received.',
+          true,
+        );
+      }, deadline - Date.now()),
+    };
+    const queue = queues.get(binding.projectId) ?? [];
+    queue.push(call);
+    queues.set(binding.projectId, queue);
+    pending.set(call.id, call);
+    wake(waiters, binding.projectId);
+  });
+}
+
 function takeNextCall(projectId: string, binding: EditorBinding): QueuedCall | undefined {
   const queue = queues.get(projectId);
   while (queue?.length) {
