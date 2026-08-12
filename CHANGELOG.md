@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Added `recover_edit_session` for browser-bound MCP projects. A fresh authenticated transport can release a draft left by a disconnected transport and continue the same project; `force: true` explicitly handles transports that failed without a close frame.
+- Added persistent `get_project_agent_state` discovery and non-destructive `resume_edit_session`, so a restarted Agent can find and continue its browser or offline draft instead of treating an MCP transport as the session owner.
 - Preserved trusted localhost editor launch origins, accepted bounded `load_skill` playbooks, and hardened transient Agent-run ownership recovery for long-running MCP workflows.
 
 ## [0.2.2] - 2026-08-11

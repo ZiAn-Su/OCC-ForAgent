@@ -19,6 +19,7 @@ import {
   invokeEditorTool,
   onRegisteredToolsChanged,
   recoverEditorEditSession,
+  resumeEditorEditSession,
   registeredTools,
   type EditorBinding,
 } from './broker.ts';
@@ -51,6 +52,7 @@ import {
   updateExternalProject,
 } from './projects.ts';
 import { openProjectEditor } from './project-opener.ts';
+import { getProjectAgentState } from './project-agent-state.ts';
 import { registerMcpPrompts } from './mcp-prompts.ts';
 import {
   activateMcpToolExposure,
@@ -211,6 +213,9 @@ async function callControlTool(
       editorUrl: editorUrl(args, String(project.id), baseUrl),
     };
   }
+  if (name === 'get_project_agent_state') {
+    return getProjectAgentState(projectForRead(session, args.projectId));
+  }
   if (name === 'update_project') {
     const requested = requestedProjectId(args.projectId);
     const current = boundProjectId(session);
@@ -343,6 +348,22 @@ async function callControlTool(
       throw error;
     }
   }
+  if (name === 'resume_edit_session') {
+    if (session.offline) {
+      throw new ExternalEditorCallError(
+        'rejected',
+        'resume_edit_session requires an open browser editor project.',
+      );
+    }
+    if (!session.id) throw new ExternalEditorCallError('failed', 'MCP session initialization is incomplete.');
+    const binding = bindBrowserForCall(session, undefined, true);
+    return resumeEditorEditSession(
+      session.id,
+      binding,
+      args.editSessionId,
+      args.force === true,
+    );
+  }
   return undefined;
 }
 
@@ -444,7 +465,7 @@ function makeServer(baseUrl: string, session: McpSession): Server {
         'Call begin_edit_session first, pass editSessionId to every editor tool, then call review_edit_session. Do not claim success until status is applied.',
         'Manual approval and visual/canvas inspection, generation, upload, network, preset, render, and export tools require opening the returned editorUrl. Use import_local_media for a local path and export_timeline for a rendered file saved to a local path.',
         'Offline review atomically commits the complete draft. A browser takeover or stored-project change makes the session stale with no partial edit.',
-        'If a prior MCP transport disappears while its edit session is active, open the same project in a new transport and call recover_edit_session with that editSessionId before beginning a replacement session. Use force:true only when the old transport did not close cleanly.',
+        'If a prior MCP transport disappears while its edit session is active, open the same project in a new transport and call resume_edit_session with that editSessionId to continue its durable draft. Use force:true only when the old transport did not close cleanly. Call recover_edit_session only when you intentionally want to discard the stranded draft and begin a replacement session.',
       ].join(' '),
     },
   );

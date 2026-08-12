@@ -135,9 +135,17 @@ function recordEditSessionOwner(call: QueuedCall, value: unknown): void {
   if (!('editSessionId' in value)) return;
   const editSessionId = value.editSessionId;
   if (typeof editSessionId !== 'string' || !editSessionId.trim()) return;
+  rememberEditSessionOwner(call.ownerId, call.binding, editSessionId);
+}
+
+function rememberEditSessionOwner(
+  ownerId: string,
+  binding: EditorBinding,
+  editSessionId: string,
+): void {
   editSessionOwners.set(editSessionId.trim(), {
-    ownerId: call.ownerId,
-    binding: { ...call.binding },
+    ownerId,
+    binding: { ...binding },
   });
 }
 
@@ -325,18 +333,15 @@ function requireCurrentBinding(binding: EditorBinding, allowRevisionDrift: boole
   );
 }
 
-export function invokeEditorTool(
+/** Every browser-side Agent command shares one cancellation/timeout queue. */
+function enqueueEditorTool(
   ownerId: string,
   binding: EditorBinding,
   name: string,
   args: Record<string, unknown>,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
+  allowRevisionDrift: boolean,
+  timeoutMs: number,
 ): Promise<unknown> {
-  const allowRevisionDrift = name === 'get_edit_session';
-  if (name !== 'begin_edit_session' && 'editSessionId' in args) {
-    requireOwnedEditSession(ownerId, binding, args);
-  }
-  requireCurrentBinding(binding, allowRevisionDrift);
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + Math.min(MAX_TIMEOUT_MS, Math.max(1_000, timeoutMs));
     const call: QueuedCall = {
@@ -364,6 +369,67 @@ export function invokeEditorTool(
     queues.set(binding.projectId, queue);
     pending.set(call.id, call);
     wake(waiters, binding.projectId);
+  });
+}
+
+export function invokeEditorTool(
+  ownerId: string,
+  binding: EditorBinding,
+  name: string,
+  args: Record<string, unknown>,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<unknown> {
+  const allowRevisionDrift = name === 'get_edit_session';
+  if (name !== 'begin_edit_session' && 'editSessionId' in args) {
+    requireOwnedEditSession(ownerId, binding, args);
+  }
+  requireCurrentBinding(binding, allowRevisionDrift);
+  return enqueueEditorTool(ownerId, binding, name, args, allowRevisionDrift, timeoutMs);
+}
+
+/**
+ * Reattach a durable editor-side draft to a new MCP transport. The source of
+ * truth is the editor's persisted edit session, not the previous HTTP
+ * transport; this only transfers the broker's short-lived dispatch fence.
+ */
+export function resumeEditorEditSession(
+  ownerId: string,
+  binding: EditorBinding,
+  editSessionId: unknown,
+  force = false,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<unknown> {
+  if (typeof editSessionId !== 'string' || !editSessionId.trim()) {
+    throw new ExternalEditorCallError('rejected', 'editSessionId is required.');
+  }
+  const sessionId = editSessionId.trim();
+  const existing = editSessionOwners.get(sessionId);
+  if (existing && existing.binding.projectId !== binding.projectId) {
+    throw new ExternalEditorCallError(
+      'rejected',
+      'The requested edit session belongs to a different OpenChatCut project.',
+    );
+  }
+  if (existing && existing.ownerId !== ownerId && !force) {
+    throw new ExternalEditorCallError(
+      'rejected',
+      'The edit session is still owned by another MCP transport. Retry with force:true only after that transport has failed.',
+    );
+  }
+  if (existing) editSessionOwners.delete(sessionId);
+  requireCurrentBinding(binding, true);
+  return enqueueEditorTool(
+    ownerId, binding, 'get_edit_session', { editSessionId: sessionId }, true, timeoutMs,
+  ).then((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+      || !('editSessionId' in value) || value.editSessionId !== sessionId) {
+      throw new ExternalEditorCallError(
+        'failed',
+        'The editor returned an invalid edit-session recovery response.',
+      );
+    }
+    rememberEditSessionOwner(ownerId, binding, sessionId);
+    return value;
   });
 }
 
@@ -402,34 +468,9 @@ export function recoverEditorEditSession(
   // entry. A forced recovery handles clients that died without a close frame.
   if (existing) editSessionOwners.delete(sessionId);
   requireCurrentBinding(binding, false);
-  return new Promise((resolve, reject) => {
-    const deadline = Date.now() + Math.min(MAX_TIMEOUT_MS, Math.max(1_000, timeoutMs));
-    const call: QueuedCall = {
-      id: randomUUID(),
-      ownerId,
-      binding: { ...binding },
-      name: 'discard_edit_session',
-      arguments: { editSessionId: sessionId },
-      state: 'queued',
-      allowRevisionDrift: false,
-      deadline,
-      resolve,
-      reject,
-      timer: setTimeout(() => {
-        finishCall(
-          call,
-          'cancelled',
-          'OpenChatCut tool discard_edit_session timed out before a terminal result was received.',
-          true,
-        );
-      }, deadline - Date.now()),
-    };
-    const queue = queues.get(binding.projectId) ?? [];
-    queue.push(call);
-    queues.set(binding.projectId, queue);
-    pending.set(call.id, call);
-    wake(waiters, binding.projectId);
-  });
+  return enqueueEditorTool(
+    ownerId, binding, 'discard_edit_session', { editSessionId: sessionId }, false, timeoutMs,
+  );
 }
 
 function takeNextCall(projectId: string, binding: EditorBinding): QueuedCall | undefined {

@@ -346,6 +346,51 @@ async function verifyOwnerDiscard(
   assert.equal(callStatus(await pending), 'cancelled');
 }
 
+async function verifyDisconnectedSessionResume(
+  context: SessionVerifierContext,
+): Promise<void> {
+  const abandoned = await beginOwnedDiscard(context);
+  cancelEditorCallsForOwner(abandoned.client.sessionId);
+  await closeClient(abandoned.client);
+
+  const recovery = await targetClient(context, 'openchatcut-mcp-session-resume');
+  const pending = recovery.client.callTool({
+    name: 'resume_edit_session',
+    arguments: { editSessionId: abandoned.editSessionId },
+  });
+  const call = await takeEditorCall(context, recovery, context.editorId, 'v5-mcp-project-a-unrelated');
+  assert.equal(call.name, 'get_edit_session');
+  settleEditorCall(call.id, 'applied', {
+    editSessionId: abandoned.editSessionId,
+    status: 'drafting',
+  });
+  assert.equal(callStatus(await pending), 'drafting');
+
+  const continued = recovery.client.callTool({
+    name: 'mcp_mutating_check',
+    arguments: { editSessionId: abandoned.editSessionId },
+  });
+  const continuedCall = await takeEditorCall(
+    context, recovery, context.editorId, 'v5-mcp-project-a-unrelated',
+  );
+  assert.equal(continuedCall.name, 'mcp_mutating_check');
+  settleEditorCall(continuedCall.id, 'applied', { ok: true });
+  assert.notEqual((await continued).isError, true);
+
+  const discard = recovery.client.callTool({
+    name: 'discard_edit_session',
+    arguments: { editSessionId: abandoned.editSessionId },
+  });
+  const discardCall = await takeEditorCall(
+    context, recovery, context.editorId, 'v5-mcp-project-a-unrelated',
+  );
+  settleEditorCall(discardCall.id, 'applied', {
+    editSessionId: abandoned.editSessionId,
+    status: 'cancelled',
+  });
+  assert.equal(callStatus(await discard), 'cancelled');
+}
+
 async function verifyDisconnectedSessionRecovery(
   context: SessionVerifierContext,
 ): Promise<void> {
@@ -528,6 +573,7 @@ export async function verifyMcpEditSessions(context: SessionVerifierContext): Pr
   await verifyPrivateActiveConflict(context, intruder, owned);
   await verifyCompetingDiscard(intruder, owned);
   await verifyOwnerDiscard(context, owned);
+  await verifyDisconnectedSessionResume(context);
   await verifyDisconnectedSessionRecovery(context);
   const rejected = await beginRejectedSession(context);
   const switchedEditor = await rejectAndSwitchEditor(context, rejected);

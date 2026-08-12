@@ -51,6 +51,17 @@ export const MCP_CONTROL_TOOLS: Tool[] = [
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
+    name: 'get_project_agent_state',
+    description: 'Read the project-level durable Agent state, including an active edit session that can be resumed after an MCP client restart.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Full project id. Defaults to this MCP session binding when present.' },
+      },
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
     name: 'update_project',
     description: 'Update an active project name and/or description without opening the editor.',
     inputSchema: {
@@ -140,6 +151,19 @@ export const MCP_CONTROL_TOOLS: Tool[] = [
       required: ['editSessionId'],
     },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: 'resume_edit_session',
+    description: 'Reconnect this MCP transport to an existing durable edit draft in the already-open project. This keeps its staged work. force:true is required only when a failed transport is still recorded as owner.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        editSessionId: { type: 'string', description: 'The active editSessionId to resume.' },
+        force: { type: 'boolean', description: 'Explicitly take over a session whose former MCP transport failed without closing.' },
+      },
+      required: ['editSessionId'],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
 ];
 
