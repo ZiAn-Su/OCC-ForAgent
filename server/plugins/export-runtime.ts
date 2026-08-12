@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { ffmpegBin } from '../media-binaries.ts';
 import { isSafeUploadName } from '../media-dir.ts';
 import {
-  h264EncoderAttempts,
   h264EncoderFallbackReason,
   h264EncoderProfile,
   h264EncodingArgs,
   h264FilterChain,
   h264GlobalArgs,
+  isHardwareDecodeFailure,
   shouldFallbackH264Encoder,
   resolveH264Encoder,
   resolveHwDecodeArgs,
@@ -218,6 +218,24 @@ export function retimeVideoEncodingArgs(
   return h264EncodingArgs({ encoder, targetBitrate, softwarePreset: 'medium' });
 }
 
+export interface H264FinalizeAttempt {
+  readonly encoder: H264Encoder;
+  readonly hardwareDecode: boolean;
+}
+
+/** Prefer acceleration, but always include a CPU-decoder retry before changing encoder. */
+export function h264FinalizeAttemptPlan(
+  preferred: H264Encoder,
+  hardwareDecodeAvailable: boolean,
+): readonly H264FinalizeAttempt[] {
+  if (preferred === 'libx264') return [{ encoder: 'libx264', hardwareDecode: false }];
+  return [
+    { encoder: preferred, hardwareDecode: hardwareDecodeAvailable },
+    ...(hardwareDecodeAvailable ? [{ encoder: preferred, hardwareDecode: false }] : []),
+    { encoder: 'libx264', hardwareDecode: false },
+  ];
+}
+
 export interface FinalizeVideoOptions {
   targetFps?: number;
   width?: number;
@@ -288,11 +306,18 @@ async function finalizeH264(
   signal?: AbortSignal,
 ): Promise<H264EncoderOutcome> {
   const preferred = await resolveH264Encoder(ffmpegBin());
-  const hwDecode = await resolveHwDecodeArgs(ffmpegBin(), preferred);
+  const preferredHwDecode = preferred === 'libx264'
+    ? []
+    : await resolveHwDecodeArgs(ffmpegBin(), preferred);
   let fallbackReason: string | undefined;
   let lastError: unknown;
-  for (const encoder of h264EncoderAttempts(preferred)) {
+  for (const attempt of h264FinalizeAttemptPlan(preferred, preferredHwDecode.length > 0)) {
+    const { encoder } = attempt;
     try {
+      // A CPU-decode retry must not inherit the device selected by the first
+      // attempt. This is the common H.264 failure mode on machines where an
+      // encoder probe succeeds but the driver cannot decode a source stream.
+      const hwDecode = attempt.hardwareDecode ? preferredHwDecode : [];
       const args = [
         ...base,
         ...hwDecode,
@@ -311,6 +336,12 @@ async function finalizeH264(
       };
     } catch (error) {
       lastError = error;
+      if (attempt.hardwareDecode && isHardwareDecodeFailure(error)) {
+        fallbackReason ??= 'hardware-decode: device-unavailable';
+        await unlink(output).catch(() => {});
+        console.warn(`[export] ${encoder} hardware decode failed; retrying the same encoder with software decode`);
+        continue;
+      }
       if (!shouldFallbackH264Encoder(encoder, error)) throw error;
       fallbackReason = h264EncoderFallbackReason(encoder, error);
       await unlink(output).catch(() => {});

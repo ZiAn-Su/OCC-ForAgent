@@ -85,7 +85,7 @@ export function isHardwareEncoderFailure(error) {
   const message = error instanceof Error
     ? `${error.message}\n${error.cause instanceof Error ? error.cause.message : String(error.cause ?? '')}`
     : String(error ?? '');
-  return /videotoolbox|nvenc|nvcuda|libcuda|qsv|quick sync|mfx|amf|vaapi|va-api|renderD\d+|no (?:nvenc )?capable devices|no device|device setup failed|hardware encoder|failed to open encoder|could not open encoder|error initializing output stream/i.test(message);
+  return /videotoolbox|nvenc|nvcuda|libcuda|qsv|quick sync|mfx|amf|vaapi|va-api|d3d11va|dxva2|hwaccel|renderD\d+|no (?:nvenc )?capable devices|no device(?: available for decoder)?|device setup failed|failed to (?:create|initiali[sz]e|setup) (?:hardware )?device|hardware (?:encoder|decode|decoder|device)|failed to open encoder|could not open encoder|error (?:while opening decoder|initializing output stream)|impossible to convert between the formats supported by the filter|error reinitializing filters|failed to inject frame into filter network/i.test(message);
 }
 
 export function hardwareEncoderFailureClass(error) {

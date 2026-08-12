@@ -12,6 +12,7 @@ import {
   forgetExportJobController,
   finalH264EncoderOutcome,
   exportOutputSize,
+  h264FinalizeAttemptPlan,
   resolveMaxActiveExports,
   retimeFps,
   retimeVideoEncodingArgs,
@@ -37,6 +38,15 @@ for (const encoder of ['h264_videotoolbox', 'h264_nvenc', 'h264_qsv', 'h264_amf'
   const args = retimeVideoEncodingArgs('h264', encoder, 12_000_000);
   assert.equal(args[args.indexOf('-b:v') + 1], '12000000', `${encoder} retime keeps the selected bitrate`);
 }
+assert.deepEqual(h264FinalizeAttemptPlan('h264_nvenc', true), [
+  { encoder: 'h264_nvenc', hardwareDecode: true },
+  { encoder: 'h264_nvenc', hardwareDecode: false },
+  { encoder: 'libx264', hardwareDecode: false },
+], 'H.264 finalization retries CPU decoding before giving up its working hardware encoder');
+assert.deepEqual(h264FinalizeAttemptPlan('h264_nvenc', false), [
+  { encoder: 'h264_nvenc', hardwareDecode: false },
+  { encoder: 'libx264', hardwareDecode: false },
+]);
 
 const software = {
   encoder: {

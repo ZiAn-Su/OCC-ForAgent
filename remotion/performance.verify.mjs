@@ -47,6 +47,8 @@ assert.equal(resolveH264VideoBitrate({ width: 3840, height: 2160, fps: 60 }), '3
 
 assert.equal(isHardwareEncoderFailure(new Error('No NVENC capable devices found')), true);
 assert.equal(isHardwareEncoderFailure(new Error('VideoToolbox encoder failed')), true);
+assert.equal(isHardwareEncoderFailure(new Error('Device setup failed for decoder: d3d11va')), true);
+assert.equal(isHardwareEncoderFailure(new Error('Error reinitializing filters! Failed to inject frame into filter network')), true);
 assert.equal(isHardwareEncoderFailure(new Error('asset returned HTTP 404')), false);
 assert.equal(hardwareEncoderFailureClass(new Error('/secret/device: No device')), 'device-unavailable');
 

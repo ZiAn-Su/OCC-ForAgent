@@ -141,8 +141,23 @@ export function h264HardwareCandidates(platform: NodeJS.Platform = process.platf
 export function isHardwareH264Encoder(encoder: H264Encoder): boolean {
   return encoder !== 'libx264' && HARDWARE_ENCODERS[encoder] === true;
 }
+
+/**
+ * `ffmpeg -hwaccels` only lists compiled backends; it cannot prove that the
+ * active driver can decode this particular source. Keep this separate from
+ * encoder failure so a final export can retry the same encoder with CPU
+ * decoding before it gives up hardware encoding.
+ */
+export function isHardwareDecodeFailure(error: unknown): boolean {
+  const message = error instanceof Error
+    ? `${error.message}\n${error.cause instanceof Error ? error.cause.message : String(error.cause ?? '')}`
+    : String(error ?? '');
+  return /hwaccel|hardware (?:decode|decoder|device)|failed to (?:create|initiali[sz]e|setup) (?:hardware )?device|device.*(?:decoder|decode)|(?:d3d11va|dxva2|cuda|videotoolbox|qsv|vaapi).*?(?:decode|decoder|device|initiali[sz])|no device available for decoder|error while opening decoder|impossible to convert between the formats supported by the filter|error reinitializing filters|failed to inject frame into filter network/i.test(message);
+}
+
 export function shouldFallbackH264Encoder(encoder: H264Encoder, error: unknown): boolean {
   if (!isHardwareH264Encoder(encoder)) return false;
+  if (isHardwareDecodeFailure(error)) return true;
   const message = error instanceof Error
     ? `${error.message}\n${error.cause instanceof Error ? error.cause.message : String(error.cause ?? '')}`
     : String(error ?? '');

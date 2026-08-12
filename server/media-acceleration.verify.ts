@@ -8,6 +8,7 @@ import {
   h264GlobalArgs,
   h264HardwareCandidates,
   h264ProbeArgs,
+  isHardwareDecodeFailure,
   isHardwareH264Encoder,
   resolveH264TargetBitrate,
   resolveVaapiDevice,
@@ -35,6 +36,18 @@ assert.equal(
 );
 assert.equal(shouldFallbackH264Encoder('h264_nvenc', new Error('asset returned HTTP 404')), false);
 assert.equal(shouldFallbackH264Encoder('h264_nvenc', new DOMException('cancelled', 'AbortError')), false);
+assert.equal(
+  isHardwareDecodeFailure(new Error('Device setup failed for decoder: device type d3d11va needed for codec h264')),
+  true,
+);
+assert.equal(
+  shouldFallbackH264Encoder('h264_nvenc', new Error('No device available for decoder')),
+  true,
+);
+assert.equal(
+  isHardwareDecodeFailure(new Error('Impossible to convert between the formats supported by the filter \'Parsed_null_0\' and the filter \'auto_scale_0\'')),
+  true,
+);
 assert.equal(resolveVaapiDevice('/dev/dri/renderD129'), '/dev/dri/renderD129');
 assert.equal(resolveVaapiDevice('../../tmp/fake-device'), '/dev/dri/renderD128');
 assert.deepEqual(h264GlobalArgs('h264_vaapi', '/dev/dri/renderD130'), [
